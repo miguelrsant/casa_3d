@@ -71,9 +71,10 @@ export const cameraKeys: Key[] = [
   { t: 0.84, pos: [24, 24, 8], target: [19, 0, 10], fov: 40, ease: 'via' },
   // vista aérea do lote inteiro (centralizada) → papel → planta
   { t: 0.875, aerial: true, ease: 'hold' },
-  // a troca para o enquadramento do hero acontece com o papel já cobrindo a tela
-  { t: 0.947, aerial: true, ease: 'hold' },
-  { t: 0.949, hero: true, ease: 'hold' },
+  // o papel é o desenho visto desta mesma câmera: a planta desenrola exatamente sobre a casa.
+  // Depois, já em desenho, a planta desliza até o enquadramento do hero
+  { t: 0.95, aerial: true, ease: 'hold' },
+  { t: 0.978, hero: true, ease: 'hold' },
   { t: 1.0, hero: true, ease: 'hold' },
 ];
 
@@ -158,8 +159,9 @@ export const stops: Stop[] = [
     index: 6,
     title: 'A SUÍTE',
     room: 'suite',
-    // closet e banho revelam enquanto a porta abre (vistos pelo vão): quando a câmera passa, já é render
-    reveal: [rv(['suite'], 0.58, 0.605), rv(['closet'], 0.617, 0.632), rv(['banho'], 0.659, 0.674)],
+    // closet e banho revelam com a porta ainda fechada: o ambiente é escolhido por fragmento (pelo mapa de zonas),
+    // então revelar enquanto a folha gira deixava a porta metade desenho, metade madeira, com bordas laranja no vão
+    reveal: [rv(['suite'], 0.58, 0.605), rv(['closet'], 0.6, 0.613), rv(['banho'], 0.645, 0.655)],
     dwell: [0.592, 0.7],
     marker: [29.6, 2.6, 4.6],
     extra: 'COM CLOSET E BANHO',
@@ -187,15 +189,20 @@ export const doorKeys: { id: string; t: [number, number] }[] = [
   { id: 'closet-banho', t: [0.657, 0.672] },
 ];
 
-/** Revelação final (o que ainda está em desenho), em onda a partir do lounge. */
+/**
+ * Revelação final (o que ainda está em desenho), em onda, enquanto a câmera está no lounge olhando para a piscina.
+ * Esses ambientes ficam atrás da câmera: na subida para a vista aérea já está tudo pronto
+ * (antes, os quartos ainda viravam render, com as bordas laranja, no meio da subida).
+ */
 export const finaleWave = {
   zones: ['circulacao', 'servico', 'garagem', 'quartos'] as ZoneName[],
-  t0: 0.812,
-  t1: 0.866,
+  t0: 0.783,
+  t1: 0.807,
 };
 
 /**
  * Fim do percurso: o papel desenrola e tudo volta ao desenho.
+ * O papel é um "print" do desenho com a câmera da vista aérea (igual à de `roll[1]`), então cobre a casa no mesmo lugar.
  * `back` (volta ao desenho) tem de acabar antes de `roll` chegar a 1: com o papel já fora da tela,
  * um quadro no meio da volta mostrava blocos revelados (com a borda laranja) piscando sobre a planta.
  * O papel cobre a tela inteira a partir de ~91% do intervalo de `roll` em 16:9 (~93% em 21:9): a troca da

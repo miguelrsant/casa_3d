@@ -28,7 +28,14 @@ float hash12(vec2 p) {
   return fract((p3.x + p3.y) * p3.z);
 }
 vec2 grad2(vec2 c) { float a = hash12(c) * 6.2831853; return vec2(cos(a), sin(a)); }
+// período inteiro na grade: um período fracionário (ex.: 2,4) deixava uma emenda na borda do ladrilho
+vec2 wrapPeriod(inout vec2 p, vec2 per) {
+  vec2 P = max(floor(per + 0.5), vec2(1.0));
+  p *= P / per;
+  return P;
+}
 float gnoise(vec2 p, vec2 per) {
+  per = wrapPeriod(p, per);
   vec2 i = floor(p);
   vec2 f = fract(p);
   vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
@@ -53,6 +60,7 @@ float fbm(vec2 p, vec2 per, int oct) {
 }
 // F1, F2 e id da célula (periódico)
 vec3 voronoi(vec2 p, vec2 per) {
+  per = wrapPeriod(p, per);
   vec2 i = floor(p);
   vec2 f = fract(p);
   float F1 = 8.0, F2 = 8.0, id = 0.0;

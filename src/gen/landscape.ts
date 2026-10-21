@@ -9,7 +9,6 @@ import {
   Matrix4,
   Mesh,
   MeshStandardMaterial,
-  PlaneGeometry,
   Quaternion,
   Vector3,
   type Group,
@@ -48,24 +47,10 @@ function fbm(x: number, z: number, oct = 5) {
 
 const CENTER = { x: 18, z: 16 };
 
-function mergeParts(parts: PlaneGeometry[]): BufferGeometry {
-  const pos: number[] = [];
-  const uv: number[] = [];
-  const idx: number[] = [];
-  for (const p of parts) {
-    const base = pos.length / 3;
-    const pa = p.getAttribute('position').array;
-    for (let i = 0; i < pa.length; i++) pos.push(pa[i]);
-    const ua = p.getAttribute('uv').array;
-    for (let i = 0; i < ua.length; i++) uv.push(ua[i]);
-    const ix = p.getIndex()!;
-    for (let i = 0; i < ix.count; i++) idx.push(base + ix.getX(i));
-  }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new Float32BufferAttribute(uv, 2));
-  g.setIndex(idx);
-  return g;
+/** Divisões de [a, b] com passo de até `step` (inclui as pontas). */
+function steps(a: number, b: number, step: number): number[] {
+  const n = Math.max(1, Math.round((b - a) / step));
+  return Array.from({ length: n + 1 }, (_, i) => a + ((b - a) * i) / n);
 }
 const SEA = -2.2;
 
@@ -89,31 +74,44 @@ export interface Landscape {
   update(siteReveal: number): void;
 }
 
-/** Terreno ao redor (morros, praia, mar) e mata distante instanciada. */
-function patch(x0: number, z0: number, x1: number, z1: number, cell: number) {
-  const w = x1 - x0;
-  const d = z1 - z0;
-  const g = new PlaneGeometry(w, d, Math.max(1, Math.round(w / cell)), Math.max(1, Math.round(d / cell)));
-  g.rotateX(-Math.PI / 2);
-  g.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+/**
+ * Terreno ao redor do lote: uma única malha em grade com um furo no lote.
+ * As linhas da grade passam pela divisa, então os vértices das bordas são compartilhados.
+ * (Eram quatro placas com malhas diferentes: as bordas não coincidiam e, onde o relevo sobe, abriam frestas
+ * finas que o traço do desenho contornava como linhas soltas — uma delas passava atrás do logo.)
+ */
+function terrainGrid(X0: number, Z0: number, X1: number, Z1: number, site: { x0: number; z0: number; x1: number; z1: number }, outer: number, inner: number) {
+  const xs = [...steps(X0, site.x0, outer), ...steps(site.x0, site.x1, inner).slice(1), ...steps(site.x1, X1, outer).slice(1)];
+  const zs = [...steps(Z0, site.z0, outer), ...steps(site.z0, site.z1, inner).slice(1), ...steps(site.z1, Z1, outer).slice(1)];
+  const nx = xs.length;
+  const pos = new Float32Array(nx * zs.length * 3);
+  for (let j = 0; j < zs.length; j++) for (let i = 0; i < nx; i++) pos.set([xs[i], 0, zs[j]], (j * nx + i) * 3);
+  const idx: number[] = [];
+  for (let j = 0; j < zs.length - 1; j++)
+    for (let i = 0; i < nx - 1; i++) {
+      const cx = (xs[i] + xs[i + 1]) / 2;
+      const cz = (zs[j] + zs[j + 1]) / 2;
+      if (cx > site.x0 && cx < site.x1 && cz > site.z0 && cz < site.z1) continue; // o lote tem o próprio gramado
+      const a = j * nx + i;
+      const c = a + nx;
+      idx.push(a, c, a + 1, c, c + 1, a + 1);
+    }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new Float32BufferAttribute(new Float32Array(nx * zs.length * 2), 2));
+  g.setIndex(idx);
   return g;
 }
 
 /** `forest`: copas da mata distante · `cell`: multiplica o passo da malha do terreno. */
 export function buildLandscape(group: Group, site: { x0: number; z0: number; x1: number; z1: number }, opts = { forest: 2600, cell: 1 }): Landscape {
-  // --- terreno: quatro placas em volta do lote, com bordas coincidindo com a divisa ---
+  // --- terreno em volta do lote, com bordas coincidindo com a divisa ---
   const R = 1200;
   const X0 = CENTER.x - R;
   const X1 = CENTER.x + R;
   const Z0 = CENTER.z - R;
   const Z1 = CENTER.z + R;
-  const parts = [
-    patch(X0, Z0, X1, site.z0, 10 * opts.cell),
-    patch(X0, site.z1, X1, Z1, 10 * opts.cell),
-    patch(X0, site.z0, site.x0, site.z1, 6 * opts.cell),
-    patch(site.x1, site.z0, X1, site.z1, 6 * opts.cell),
-  ];
-  const geo = mergeParts(parts);
+  const geo = terrainGrid(X0, Z0, X1, Z1, site, 10 * opts.cell, 6 * opts.cell);
   const pos = geo.getAttribute('position');
   const colors: number[] = [];
   const sand = new Color('#cbb894');

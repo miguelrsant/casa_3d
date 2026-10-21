@@ -36,8 +36,20 @@ describe('stateAt', () => {
       const s = stateAt(t, hero);
       expect(Math.max(...s.reveal)).toBe(0);
       expect(s.sky).toBe(0);
-      expect(s.hero).toBe(1);
     }
+  });
+
+  it('o papel cobre a casa no mesmo enquadramento: a câmera fica na vista aérea durante todo o papel', () => {
+    const aerial = { pos: new Vector3(18, 190, 16), target: new Vector3(18, 0, 16), fov: 30 };
+    const h = { ...hero, aerial };
+    for (let t = finale.roll[0]; t <= finale.roll[1] + 1e-9; t += 0.0005) {
+      const s = stateAt(t, h);
+      expect(s.hero).toBe(0);
+      expect(s.pos.distanceTo(aerial.pos)).toBeLessThan(1e-3);
+      expect(s.fov).toBeCloseTo(aerial.fov, 3);
+    }
+    // e só depois, já em desenho, desliza para o enquadramento do hero
+    expect(stateAt(1, h).hero).toBe(1);
   });
 
   it('revela cada ambiente na sua parada e mantém revelado depois', () => {

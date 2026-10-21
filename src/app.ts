@@ -18,7 +18,7 @@ import { buildLandscape } from './gen/landscape';
 import { SkySystem } from './gen/sky';
 import { LightRig } from './render/lightRig';
 import { stateAt, type HeroPose, type Pose, type SceneState } from './story/stateAt';
-import { doorKeys, sunKeys } from './story/stops';
+import { doorKeys, finale, sunKeys } from './story/stops';
 import { buildStory, buildUI, drawScaleBar } from './ui/dom';
 import { Hud } from './ui/hud';
 import { FileModal } from './ui/fileModal';
@@ -454,17 +454,19 @@ export async function startApp() {
     renderer.composite.set('uSkyReveal', s.sky);
     scene.environmentIntensity = (0.2 + 0.42 * MathUtils.smoothstep(s.sunEl, -4, 12)) * lights.envFactor;
     // o traço distante esmaece na tela cheia; no hero não. A troca é contínua (antes virava de uma vez no meio da descida)
-    const hk = MathUtils.smoothstep(s.hero, 0.15, 0.85);
+    // no fim, de volta ao desenho (papel e planta vistos da vista aérea), o traço também não esmaece
+    const hk = Math.max(MathUtils.smoothstep(s.hero, 0.15, 0.85), s.t >= finale.back[0] ? 1 - s.sky : 0);
     (renderer.composite.uniforms.get('uInkFade')!.value as Vector2).set(16 * Math.pow(1e4 / 16, hk), 46 * Math.pow(2e4 / 46, hk));
     renderer.composite.set('uExposure', s.exposure * expBias);
     renderer.ink.active = s.reveal.some((v, i) => i < 22 && v < 0.999) || s.t < 0.15;
   }
 
-  // o papel do final é um "print" do desenho com a câmera do hero (capturado quando necessário)
-  const paperState: SceneState = stateAt(1, hero);
+  // o papel do final é um "print" do desenho com a câmera da vista aérea (capturado quando necessário):
+  // desenrola com a planta exatamente sobre a casa 3D
+  const paperState: SceneState = stateAt(finale.roll[1], hero);
   function ensurePaper(t: number) {
     if (t < 0.86 || renderer.hasPaper) return;
-    stateAt(1, hero, paperState);
+    stateAt(finale.roll[1], hero, paperState);
     applyState(paperState);
     renderer.roll.roll = 0;
     renderer.render(0);
