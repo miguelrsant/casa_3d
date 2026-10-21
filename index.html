@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Casa Brisa — miguelrsant</title>
+    <meta name="description" content="Uma planta baixa que vira casa 3D conforme você rola a página. Casa Brisa, um projeto miguelrsant." />
+    <meta name="theme-color" content="#E8E5DF" />
+    <link rel="icon" type="image/svg+xml" href="/brand/miguelrsant-icon.svg" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+  </head>
+  <body class="is-loading">
+    <div class="loader" id="loader" role="status" aria-live="polite">
+      <div>
+        <div id="loader-label">DESENHANDO A PLANTA</div>
+        <div class="loader__bar"><i></i></div>
+      </div>
+    </div>
+    <canvas id="scene" aria-hidden="true"></canvas>
+    <div id="ui"></div>
+    <main id="story"></main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

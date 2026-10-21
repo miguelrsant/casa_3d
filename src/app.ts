@@ -1,0 +1,429 @@
+import { Color, FogExp2, Group, MathUtils, PerspectiveCamera, PlaneGeometry, Scene, Vector2, Vector3 } from 'three';
+import Lenis from 'lenis';
+import { copy } from './content/copy.pt-BR';
+import { house } from './data/house';
+import { zoneIndex } from './data/schema';
+import { buildZoneMap, RV } from './render/zones';
+import { Renderer, detectTier } from './render/renderer';
+import { bakeTextures } from './render/materials/textures';
+import { initLibrary, miscMaterial, nightFloors } from './render/materials/library';
+import { buildArchitecture } from './gen/architecture';
+import { buildAnnotations } from './gen/annotations';
+import { furnish, glowMaterials } from './gen/furniture';
+import { createFire } from './gen/fire';
+import { createWaterfall } from './gen/waterfall';
+import { Reflector } from 'three/addons/objects/Reflector.js';
+import { buildVegetation, setVegetationDetail, symbolRadius, vegUniforms } from './gen/vegetation';
+import { buildLandscape } from './gen/landscape';
+import { SkySystem } from './gen/sky';
+import { LightRig } from './render/lightRig';
+import { stateAt, type HeroPose, type SceneState } from './story/stateAt';
+import { sunKeys } from './story/stops';
+import { buildStory, buildUI, drawScaleBar } from './ui/dom';
+import { Hud } from './ui/hud';
+import { FileModal } from './ui/fileModal';
+
+/** Extensão da prancha no hero (casa + cotas + eixos), em metros. */
+const PLAN = { x0: -8.6, x1: 45.2, z0: -18.6, z1: 30.2 };
+const SCROLL_VH = 2600;
+
+const loader = {
+  el: document.getElementById('loader')!,
+  bar: document.querySelector<HTMLElement>('.loader__bar i')!,
+  set(p: number) {
+    this.bar.style.setProperty('--p', p.toFixed(3));
+  },
+  done() {
+    this.el.classList.add('is-done');
+    document.body.classList.remove('is-loading');
+    setTimeout(() => this.el.remove(), 900);
+  },
+};
+const frame = () => new Promise((r) => requestAnimationFrame(r));
+
+/** Sem 3D: mostra a planta estática no lugar do canvas (mantém textos e CTA). */
+/** Recarregamentos automáticos quando a GPU derruba o 3D (drivers instáveis costumam falhar de forma aleatória). */
+const RETRY_KEY = 'casa3d:retries';
+const RESUME_KEY = 'casa3d:resume';
+const MAX_RETRIES = 2;
+const store = {
+  get(k: string) {
+    try {
+      return sessionStorage.getItem(k);
+    } catch {
+      return null;
+    }
+  },
+  set(k: string, v: string | null) {
+    try {
+      if (v === null) sessionStorage.removeItem(k);
+      else sessionStorage.setItem(k, v);
+    } catch {
+      /* sem armazenamento: só não há nova tentativa automática */
+    }
+  },
+};
+
+function showStaticFallback(message: string, retry = false) {
+  const canvas = document.getElementById('scene');
+  if (canvas) canvas.style.display = 'none';
+  const slot = document.querySelector<HTMLElement>('[data-plan-slot]');
+  document.getElementById('story')?.style.setProperty('height', '100vh');
+  const img = Object.assign(document.createElement('img'), { src: '/fallback/planta.png', alt: 'Planta baixa da Casa Brisa' });
+  img.className = 'fallback-plan';
+  (slot ?? document.body).append(img);
+  const note = Object.assign(document.createElement('div'), { className: 'fallback-note', textContent: message });
+  if (retry) {
+    const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'fallback-retry', textContent: copy.retry3d });
+    btn.addEventListener('click', () => {
+      store.set(RETRY_KEY, null);
+      location.reload();
+    });
+    note.append(btn);
+  }
+  document.getElementById('ui')?.append(note);
+}
+
+function webgl2Available() {
+  try {
+    return !!document.createElement('canvas').getContext('webgl2');
+  } catch {
+    return false;
+  }
+}
+
+export async function startApp() {
+  document.getElementById('loader-label')!.textContent = copy.loader.label;
+  if (!webgl2Available()) {
+    loader.done();
+    buildUI();
+    showStaticFallback(copy.noWebgl);
+    return;
+  }
+
+  const ui = buildUI();
+  buildStory(SCROLL_VH);
+  const canvas = document.getElementById('scene') as HTMLCanvasElement;
+  const scene = new Scene();
+  // névoa atmosférica (sempre presente: ligar/desligar recompilaria os shaders)
+  const fog = new FogExp2(0xc9d6df, 0.0032);
+  scene.fog = fog;
+  const fogDay = new Color('#c9d6df');
+  const fogGold = new Color('#d8d2c2');
+  const fogDusk = new Color('#1d2233');
+  const camera = new PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 600);
+  const tier = detectTier();
+
+  const renderer = new Renderer(canvas, scene, camera, tier);
+  const quality = renderer.quality;
+  renderer.resize(innerWidth, innerHeight);
+  loader.set(0.06);
+  await frame();
+  // texturas procedurais (assadas na GPU) antes de criar os materiais
+  initLibrary(await bakeTextures(renderer.gl, quality.tex, (p) => loader.set(0.06 + 0.14 * p)));
+  loader.set(0.2);
+  await frame();
+
+  buildZoneMap(house);
+  const arch = buildArchitecture(house);
+  scene.add(arch.root, arch.ground);
+  const furn = furnish();
+  arch.root.add(furn.root);
+  const fire = createFire(29, -0.45 + 0.38, -7);
+  scene.add(fire.mesh);
+  const fall = createWaterfall(14.6, 17.4, -9.0, 2.05, -0.08);
+  scene.add(...fall.meshes);
+  // espelho do banho: reflexo real, ligado só quando a câmera está no banho
+  const mirror = new Reflector(new PlaneGeometry(2.22, 0.97), {
+    clipBias: 0.003,
+    textureWidth: Math.round(innerWidth * quality.mirror),
+    textureHeight: Math.round(innerHeight * quality.mirror),
+    color: 0xb9bdbd,
+    multisample: 0,
+  });
+  mirror.position.set(27.66, 1.15 + 0.03 + 0.505, 11.2);
+  mirror.rotation.y = Math.PI / 2;
+  mirror.visible = false;
+  scene.add(mirror);
+  const bath = house.rooms.find((r) => r.id === 'banho')!.rect;
+  const poolWater = miscMaterial('poolWater');
+  loader.set(0.34);
+  await frame();
+
+  const vegGroup = new Group();
+  vegGroup.name = 'vegetation';
+  scene.add(vegGroup);
+  setVegetationDetail(quality.veg);
+  const veg = buildVegetation(house, vegGroup);
+  const landGroup = new Group();
+  landGroup.name = 'landscape';
+  scene.add(landGroup);
+  const land = buildLandscape(landGroup, house.site, { forest: quality.forest, cell: quality.terrainCell });
+  const notes = buildAnnotations(
+    house,
+    veg.plants.map((p) => ({ species: p.species, x: p.x, z: p.z, r: symbolRadius(p) })),
+  );
+  scene.add(notes.group);
+  const sky = new SkySystem(scene, quality.shadow);
+  const lights = new LightRig(scene, house, quality.roomLights, quality.poolLights);
+  let dtFrame = 0;
+  const params = new URLSearchParams(location.search);
+  const tmName = params.get('tm') ?? 'aces';
+  renderer.composite.set('uToneMap', Math.max(0, ['agx', 'aces', 'neutral'].indexOf(tmName)));
+  const expBias = Number(params.get('exp') ?? 1);
+  loader.set(0.45);
+  await frame();
+
+  sky.precompute(renderer.gl, sunKeys.filter((k, i) => i === 0 || k.el !== sunKeys[i - 1].el).map((k) => ({ az: k.az, el: k.el })));
+  scene.environment = sky.envFor(32);
+  loader.set(0.62);
+  await notes.sync();
+  loader.set(0.75);
+
+  // enquadramento do hero a partir do slot da planta no DOM
+  const hero: HeroPose & { slot: DOMRect } = { pos: new Vector3(), target: new Vector3(), fov: 12, slot: new DOMRect() };
+  const computeHero = () => {
+    const r = ui.slot.getBoundingClientRect();
+    hero.slot = r;
+    const aspect = r.width / Math.max(1, r.height);
+    const w = PLAN.x1 - PLAN.x0;
+    const d = PLAN.z1 - PLAN.z0;
+    const halfH = Math.max(d, w / aspect) * 0.5 * 1.02;
+    const dist = halfH / Math.tan(MathUtils.degToRad(hero.fov / 2));
+    const cx = (PLAN.x0 + PLAN.x1) / 2;
+    const cz = (PLAN.z0 + PLAN.z1) / 2;
+    hero.pos.set(cx, dist, cz);
+    hero.target.set(cx, 0, cz);
+    drawScaleBar(ui.scaleBar, r.height / (halfH * 2));
+  };
+
+  const resize = () => {
+    renderer.resize(innerWidth, innerHeight);
+    notes.setResolution(innerWidth * renderer.dpr, innerHeight * renderer.dpr);
+    computeHero();
+  };
+  resize();
+  addEventListener('resize', resize);
+
+  const lastSun = new Vector3();
+  const lastCenter = new Vector3(1e9, 0, 0);
+  const center = new Vector3();
+  const tmp = new Vector3();
+
+  // estado inicial + pré-compilação dos shaders (evita travadas no meio do scroll)
+  const state: SceneState = stateAt(0, hero);
+  applyState(state);
+  // o shadow map precisa existir antes do primeiro quadro (sampler2DShadow sem textura gera erro de GL)
+  renderer.gl.shadowMap.needsUpdate = true;
+  await precompile();
+  renderer.render(0);
+  loader.set(1);
+
+  /**
+   * Compila de uma vez os shaders de tudo que aparece ao longo do percurso (inclusive o que ainda está
+   * escondido), na variante usada de fato: a cena é desenhada num alvo do pós-processamento (cor linear),
+   * não direto na tela. Assim não há compilação (e travada) no meio do scroll.
+   */
+  async function precompile() {
+    const hidden: { visible: boolean }[] = [];
+    scene.traverse((o) => {
+      if (!o.visible) {
+        o.visible = true;
+        hidden.push(o);
+      }
+    });
+    const prev = renderer.gl.getRenderTarget();
+    renderer.gl.setRenderTarget(renderer.composer.inputBuffer);
+    await renderer.gl.compileAsync(scene, camera);
+    renderer.gl.setRenderTarget(prev);
+    for (const o of hidden) o.visible = false;
+  }
+
+  // --- scroll ---
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const lenis = new Lenis({ lerp: reduced ? 1 : 0.085, wheelMultiplier: 0.85, smoothWheel: !reduced });
+  const modal = new FileModal({ onOpen: () => lenis.stop(), onClose: () => lenis.start() });
+  const hud = new Hud(ui, {
+    onJump: (t) => lenis.scrollTo(t * lenis.limit, { duration: 2.4 }),
+    onOpenFile: (i) => modal.open(i),
+  });
+  // volta ao ponto do percurso depois de um recarregamento automático
+  const resume = Number(store.get(RESUME_KEY));
+  store.set(RESUME_KEY, null);
+  const qt = Number(new URLSearchParams(location.search).get('t')) || resume;
+  if (qt > 0) lenis.scrollTo(qt * lenis.limit, { immediate: true, force: true });
+
+  // --- loop ---
+  let last = performance.now();
+  let tOverride: number | null = null;
+
+  function applyState(s: SceneState) {
+    // câmera (com o deslocamento do enquadramento do hero)
+    camera.position.copy(s.pos);
+    camera.up.copy(s.up);
+    camera.lookAt(s.target);
+    camera.fov = s.fov;
+    const W = innerWidth;
+    const H = innerHeight;
+    const k = s.hero;
+    const fullW = MathUtils.lerp(W, hero.slot.width, k);
+    const fullH = MathUtils.lerp(H, hero.slot.height, k);
+    camera.aspect = fullW / fullH;
+    camera.setViewOffset(fullW, fullH, -hero.slot.left * k, -hero.slot.top * k, W, H);
+    camera.near = MathUtils.clamp((s.pos.y - 9) * 0.4, 0.05, 160);
+    camera.far = Math.max(420, s.pos.y * 1.6 + 220);
+    camera.updateProjectionMatrix();
+
+    // casa
+    arch.root.scale.y = s.extrude;
+    arch.pivot.rotation.y = s.pivot * MathUtils.degToRad(84);
+    for (const c of arch.ceilings) {
+      const vis = s.pos.y < c.y * s.extrude - 0.04;
+      for (const m of c.meshes) m.visible = vis;
+    }
+    for (const sl of arch.slats) {
+      const vis = s.pos.y < sl.y * s.extrude - 0.04 && s.reveal[sl.zone] > 0.5;
+      for (const m of sl.meshes) m.visible = vis;
+    }
+    lights.update(s, dtFrame);
+    for (const g of glowMaterials) g.mat.emissiveIntensity = MathUtils.lerp(g.day, g.night, s.night);
+    for (const f of furn.fans) f.rotation.y += dtFrame * 2.2;
+    fire.mat.uniforms.uTime.value += dtFrame;
+    fire.mat.uniforms.uIntensity.value = MathUtils.smoothstep(s.reveal[zoneIndex('lounge')], 0.4, 0.9) * (0.35 + 0.65 * s.night);
+    fire.mesh.visible = fire.mat.uniforms.uIntensity.value > 0.01;
+    poolWater.emissiveIntensity = 0.9 * s.night * s.reveal[zoneIndex('piscina')];
+    for (const f of nightFloors) f.emissiveIntensity = 0.09 * s.night * (s.pos.y > 6 ? 1 : 0.35);
+    veg.update(s.reveal, dtFrame, s.pos);
+    fall.update(dtFrame, MathUtils.smoothstep(s.reveal[zoneIndex('piscina')], 0.5, 0.9), s.night);
+    mirror.visible =
+      s.reveal[zoneIndex('banho')] > 0.6 &&
+      s.pos.x > bath.x0 - 0.5 && s.pos.x < bath.x1 + 0.5 && s.pos.z > bath.z0 - 1.2 && s.pos.z < bath.z1 + 0.5;
+    land.update(s.reveal[zoneIndex('site')]);
+    vegUniforms.uSunDir.value.copy(sky.direction);
+    vegUniforms.uSunColor.value.copy(sky.sun.color).multiplyScalar(sky.sun.intensity * 0.25);
+    RV.rvReveal.value.set(s.reveal);
+    notes.update(s.reveal, s.siteFade);
+
+    // luz
+    tmp.subVectors(s.target, s.pos).setY(0);
+    if (tmp.lengthSq() > 1e-6) tmp.normalize();
+    center.copy(s.pos).addScaledVector(tmp, 9).setY(0);
+    sky.update(s.sunAz, s.sunEl, center, 26);
+    const env = sky.envFor(s.sunEl);
+    if (env && scene.environment !== env) scene.environment = env;
+    if (sky.direction.distanceToSquared(lastSun) > quality.shadowTurn || center.distanceToSquared(lastCenter) > quality.shadowMove || (s.pivot > 0 && s.pivot < 1)) {
+      if (s.sky > 0.01) renderer.gl.shadowMap.needsUpdate = true; // não cancela uma atualização pendente
+      lastSun.copy(sky.direction);
+      lastCenter.copy(center);
+    }
+    fog.color.copy(fogDusk).lerp(fogGold, MathUtils.smoothstep(s.sunEl, -1, 6)).lerp(fogDay, MathUtils.smoothstep(s.sunEl, 8, 24));
+    fog.density = 0.0032 * (1 - MathUtils.smoothstep(s.pos.y, 12, 60));
+    renderer.composite.set('uSkyReveal', s.sky);
+    scene.environmentIntensity = (0.16 + 0.24 * MathUtils.smoothstep(s.sunEl, -4, 12)) * lights.envFactor;
+    (renderer.composite.uniforms.get('uInkFade')!.value as Vector2).set(s.hero > 0.5 ? 1e4 : 16, s.hero > 0.5 ? 2e4 : 46);
+    renderer.composite.set('uExposure', s.exposure * expBias);
+    renderer.ink.active = s.reveal.some((v, i) => i < 22 && v < 0.999) || s.t < 0.15;
+  }
+
+  // o papel do final é um "print" do desenho com a câmera do hero (capturado quando necessário)
+  const paperState: SceneState = stateAt(1, hero);
+  function ensurePaper(t: number) {
+    if (t < 0.86 || renderer.hasPaper) return;
+    stateAt(1, hero, paperState);
+    applyState(paperState);
+    renderer.roll.roll = 0;
+    renderer.render(0);
+    renderer.capturePaper();
+  }
+
+  function loop(now: number) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    dtFrame = dt;
+    last = now;
+    lenis.raf(now);
+    const t = tOverride ?? lenis.progress;
+    ensurePaper(Number.isFinite(t) ? t : 0);
+    stateAt(Number.isFinite(t) ? t : 0, hero, state);
+    applyState(state);
+    renderer.roll.roll = state.roll < 1 ? state.roll : 0;
+    hud.update(state, camera, innerWidth, innerHeight);
+    renderer.render(dt);
+    probe(dt);
+    debug?.update();
+    if (alive) requestAnimationFrame(loop);
+  }
+
+  // painel de debug (só em desenvolvimento)
+  let debug: { update(): void } | null = null;
+  if (import.meta.env.DEV) {
+    const mod = await import('./debug/gui');
+    debug = mod.createDebug({
+      renderer,
+      lenis,
+      ui,
+      setT: (t) => (tOverride = t),
+    });
+  }
+
+  // robustez: contexto perdido (drivers instáveis) → planta estática
+  let alive = true;
+  // robustez: contexto perdido (drivers instáveis) → recarrega e tenta de novo; depois disso, planta estática
+  canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault();
+    alive = false;
+    const retries = Number(store.get(RETRY_KEY) ?? 0);
+    if (retries < MAX_RETRIES) {
+      store.set(RETRY_KEY, String(retries + 1));
+      store.set(RESUME_KEY, String(lenis.progress || 0));
+      location.reload();
+      return;
+    }
+    // sem o 3D não há percurso para rolar: devolve o scroll nativo à página
+    lenis.destroy();
+    showStaticFallback(copy.contextLost, true);
+  });
+  // rodou bem por um tempo: zera as tentativas (uma queda futura volta a recarregar)
+  setTimeout(() => alive && store.set(RETRY_KEY, null), 30000);
+
+  // GPU lenta: mede o tempo de quadro o tempo todo e reduz a qualidade em degraus quando não acompanha.
+  // Ordem: AO → sombra menor → resolução dinâmica. Nada aqui recompila shaders.
+  const forcedTier = params.has('q');
+  const steps: (() => boolean)[] = [
+    () => renderer.disableAO(),
+    () => {
+      if (!sky.halveShadow()) return false;
+      renderer.gl.shadowMap.needsUpdate = true;
+      return true;
+    },
+    () => setScale(0.85),
+    () => setScale(0.72),
+    () => setScale(0.6),
+  ];
+  function setScale(k: number) {
+    if (renderer.scale <= k) return false;
+    renderer.scale = k;
+    resize();
+    return true;
+  }
+  function degrade() {
+    while (steps.length) if (steps.shift()!()) return true;
+    return false;
+  }
+  let probeFrames = -10; // ignora os primeiros quadros (uploads e aquecimento)
+  let probeTime = 0;
+  const probe = (dt: number) => {
+    if (forcedTier || !steps.length) return;
+    if (document.hidden) return; // aba em segundo plano não conta
+    if (++probeFrames <= 0) return;
+    probeTime += dt;
+    if (probeFrames < 60 && !(probeFrames >= 8 && probeTime > 1.5)) return; // ~60 quadros ou 1,5 s
+    if (probeTime / probeFrames > 0.038) degrade(); // abaixo de ~26 fps
+    probeFrames = -8; // espera o efeito do degrau antes de medir de novo
+    probeTime = 0;
+  };
+  if (renderer.isSoftware && !forcedTier) degrade();
+
+  loader.done();
+  requestAnimationFrame(loop);
+  Object.assign(window, { __casa: { state, scene, camera, renderer, lenis, setT: (t: number | null) => (tOverride = t) } });
+}

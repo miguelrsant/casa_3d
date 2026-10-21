@@ -1,0 +1,23 @@
+@import '@fontsource/saira-stencil-one/400.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource-variable/inter';
+
+:root {
+  --paper: #e8e5df;
+  --paper-2: #dedad2;
+  --ink: #262522;
+  --ink-soft: #6b6862;
+  --ink-faint: rgba(38, 37, 34, 0.38);
+  --hair: rgba(38, 37, 34, 0.55);
+  --accent: #e2512a;
+  --light: #f4f1ea;
+
+  --font-display: 'Saira Stencil One', 'Impact', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif;
+
+  --gutter: clamp(16px, 2.4vw, 40px);
+  --hud-size: clamp(9px, 0.62vw, 11px);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
