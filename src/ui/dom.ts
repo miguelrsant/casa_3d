@@ -101,7 +101,7 @@ export function buildUI(): UIRefs {
   const rulerButtons = stops
     .filter((st) => st.index > 0)
     .map((st) => {
-      const b = h('button', { type: 'button', 'aria-label': `${copy.hud.stopKicker} ${st.index}: ${st.title}`, style: `top:${(st.dwell[0] * 100).toFixed(2)}%` }, h('span', {}, String(st.index).padStart(2, '0'))) as HTMLButtonElement;
+      const b = h('button', { type: 'button', 'aria-label': `${copy.hud.stopKicker} ${st.index}: ${st.title}`, style: `--at:${(st.dwell[0] * 100).toFixed(2)}%` }, h('span', {}, String(st.index).padStart(2, '0'))) as HTMLButtonElement;
       b.dataset.t = String((st.dwell[0] + st.dwell[1]) / 2);
       return b;
     });

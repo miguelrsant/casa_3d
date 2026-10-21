@@ -56,7 +56,7 @@ export class SkySystem {
   readonly target = new Object3D();
   private envMaps: { key: SunKey; tex: Texture }[] = [];
   private dir = new Vector3();
-  private warm = new Color('#FFE2B8');
+  private warm = new Color('#FFD7A6');
   private noon = new Color('#FFF6EA');
   private dusk = new Color('#FF9A5C');
   private moonC = new Color('#9fb6ff');
@@ -155,13 +155,14 @@ export class SkySystem {
     this.sky.material.uniforms.sunPosition.value.copy(this.dir);
     this.sky.material.uniforms.uTwilight.value = fall(el, 2, -2.5);
     const day = MathUtils.smoothstep(el, -4, 14);
-    const high = MathUtils.smoothstep(el, 8, 35);
+    // fim de tarde: o sol só fica branco bem alto (o percurso inteiro é por volta das 17 h)
+    const high = MathUtils.smoothstep(el, 28, 55);
     const moon = fall(el, 0.5, -2);
     this.sun.color.copy(this.dusk).lerp(this.warm, MathUtils.smoothstep(el, 2, 14)).lerp(this.noon, high).lerp(this.moonC, moon);
     this.sun.intensity = 5.6 * MathUtils.smoothstep(el, -1, 6) + 0.32 * moon;
     sunDirection(70, 42, this.moonDir);
     const lightDir = this.dir.clone().lerp(this.moonDir, moon).normalize();
-    this.hemi.intensity = 0.06 + 0.14 * day + 0.3 * moon;
+    this.hemi.intensity = 0.08 + 0.4 * day + 0.3 * moon;
     this.hemi.color.set('#5c6f9c').lerp(new Color('#e4ebf1'), day);
     this.hemi.groundColor.set('#2a2622').lerp(new Color('#b49a76'), day);
     this.target.position.copy(center);

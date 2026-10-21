@@ -15,6 +15,7 @@ import {
   type Group,
 } from 'three';
 import { patchMaterial } from '../render/materials/patchMaterial';
+import { LAWN_MEAN, terrainMaterial } from '../render/materials/library';
 import { LAYER_INK } from './builder';
 import { rng } from './vegetation';
 
@@ -120,23 +121,30 @@ export function buildLandscape(group: Group, site: { x0: number; z0: number; x1:
   const forest = new Color('#3d5a2c');
   const rock = new Color('#6e6a5c');
   const c = new Color();
+  const uvAttr = geo.getAttribute('uv');
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const z = pos.getZ(i);
     const y = heightAt(x, z);
     pos.setY(i, y);
+    uvAttr.setXY(i, x, z); // em metros, como o gramado do lote
     const n = fbm(x / 35, z / 35, 3);
-    const beach = Math.max(0, 1 - Math.abs(y - SEA - 1.2) / 3.2);
+    // areia só perto da costa (a cota plana em volta do lote caía na faixa da praia e ficava bege)
+    const nearCoast = Math.min(1, Math.max(0, 1 - (z - coast(x) - 30) / 40));
+    const beach = Math.max(0, 1 - Math.abs(y - SEA - 1.2) / 3.2) * nearCoast;
     c.copy(grass).lerp(forest, Math.min(1, Math.max(0, (y - 6) / 26)) * 0.9 + n * 0.2);
     if (y > 60) c.lerp(rock, Math.min(1, (y - 60) / 40) * 0.35);
     c.lerp(sand, beach);
     c.multiplyScalar(0.85 + n * 0.3);
-    colors.push(c.r, c.g, c.b);
+    // tinta sobre a textura: branca perto da divisa, a cor do relevo longe dela
+    const edge = Math.hypot(Math.max(site.x0 - x, 0, x - site.x1), Math.max(site.z0 - z, 0, z - site.z1));
+    const far = Math.min(1, Math.max(0, (edge - 30) / 110));
+    const w = far * far * (3 - 2 * far);
+    colors.push(1 + (c.r / LAWN_MEAN.r - 1) * w, 1 + (c.g / LAWN_MEAN.g - 1) * w, 1 + (c.b / LAWN_MEAN.b - 1) * w);
   }
   geo.setAttribute('color', new Float32BufferAttribute(colors, 3));
   geo.computeVertexNormals();
-  const terrainMat = patchMaterial(new MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 }), {});
-  const terrain = new Mesh(geo, terrainMat);
+  const terrain = new Mesh(geo, terrainMaterial());
   terrain.receiveShadow = true;
   terrain.layers.enable(LAYER_INK);
   // mesmo ID de traço do gramado do lote: sem linha na divisa

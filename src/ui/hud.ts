@@ -1,6 +1,7 @@
 import { Vector3, type PerspectiveCamera } from 'three';
 import { gsap } from 'gsap';
 import { ScrambleTextPlugin } from 'gsap/ScrambleTextPlugin';
+import { brand } from '../content/brand';
 import { copy } from '../content/copy.pt-BR';
 import { house } from '../data/house';
 import { stops } from '../story/stops';
@@ -65,6 +66,9 @@ export class Hud {
   private v = new Vector3();
   private aerialEls: { el: HTMLElement; p: Vector3 }[] = [];
   private brandSpan: HTMLElement | null;
+  /** Telas estreitas: o callout fica fixo no rodapé (seguir o marcador o empurrava para fora da tela). */
+  private compact = matchMedia('(max-width: 760px)');
+  private touch = matchMedia('(pointer: coarse)');
 
   constructor(
     private ui: UIRefs,
@@ -105,7 +109,8 @@ export class Hud {
 
   private scrambleBrand() {
     if (!this.brandSpan) return;
-    gsap.to(this.brandSpan, { duration: 0.7, scrambleText: { text: this.brandSpan.textContent ?? '', chars: 'upperCase', speed: 0.8 } });
+    // o alvo é sempre o nome da marca (ler o textContent no meio de outro scramble gravava as letras embaralhadas)
+    gsap.to(this.brandSpan, { duration: 0.7, overwrite: true, scrambleText: { text: brand.wordmark, chars: 'upperCase', speed: 0.8 } });
   }
 
   update(s: SceneState, camera: PerspectiveCamera, w: number, hgt: number) {
@@ -129,7 +134,7 @@ export class Hud {
     // dica inferior
     let hint: string = copy.hints.next;
     if (s.t < 0.125) hint = copy.hints.enter;
-    else if (s.callout > 0.5) hint = copy.hints.marker;
+    else if (s.callout > 0.5) hint = this.touch.matches ? copy.hints.markerTouch : copy.hints.marker;
     else if (s.t > 0.86 && s.t < 0.955) hint = copy.hints.aerial;
     else if (s.t >= 0.955) hint = copy.hints.end;
     if (ui.hint.textContent !== hint) ui.hint.textContent = hint;
@@ -140,7 +145,11 @@ export class Hud {
       this.lastStop = s.stop;
       if (s.stop >= 0 && stops[s.stop].index > 0) this.playCallout(s.stop);
     }
-    if (s.stop >= 0 && s.callout > 0.001) {
+    if (s.stop >= 0 && s.callout > 0.001 && this.compact.matches) {
+      ui.callout.style.transform = '';
+      ui.callout.style.opacity = String(s.callout);
+      ui.callout.style.pointerEvents = s.callout > 0.6 ? 'auto' : 'none';
+    } else if (s.stop >= 0 && s.callout > 0.001) {
       const m = stops[s.stop].marker;
       this.v.set(m[0], m[1], m[2]).project(camera);
       const visible = this.v.z < 1 && Math.abs(this.v.x) < 1.2 && Math.abs(this.v.y) < 1.2;

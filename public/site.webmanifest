@@ -1,0 +1,11 @@
+{
+  "name": "Casa Brisa — miguelrsant",
+  "short_name": "Casa Brisa",
+  "icons": [
+    { "src": "/brand/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#E8E5DF",
+  "background_color": "#E8E5DF",
+  "display": "standalone"
+}

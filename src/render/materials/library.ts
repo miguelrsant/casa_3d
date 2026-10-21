@@ -159,6 +159,23 @@ export function siteGroundMaterial(): MeshStandardMaterial {
   return cache.get(k)!;
 }
 
+/**
+ * Terreno em volta do lote: o mesmo gramado com textura (UV em metros), tingido por vértice só longe
+ * da divisa (morros, mata, praia). Perto do lote o tom é branco: a grama continua sem emenda.
+ */
+export function terrainMaterial(): MeshStandardMaterial {
+  const k = 'terrain';
+  if (!cache.has(k)) {
+    const m = make(FLOORS.lawn, {}, k);
+    m.vertexColors = true;
+    cache.set(k, m);
+  }
+  return cache.get(k)!;
+}
+
+/** Albedo médio (linear) da textura do gramado: o tingimento do terreno divide por ele. */
+export const LAWN_MEAN = new Color(0.17, 0.22, 0.056);
+
 export function glassMaterial(): MeshStandardMaterial {
   const k = 'glass';
   if (!cache.has(k)) {

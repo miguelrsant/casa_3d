@@ -29,7 +29,8 @@ npm run dev        # http://localhost:5173
 | `src/story/stops.ts` | o percurso: câmera, quando cada ambiente revela, textos das fichas, horário do sol |
 | `src/gen/furniture.ts` | móveis (posição de cada peça por ambiente) |
 | `src/gen/vegetation.ts` | espécies e plano de plantio |
-| `public/brand/` | ícone da marca (também usado como favicon) |
+| `public/brand/` | logo da marca (M preto, fundo transparente) e ícones PNG (Apple/Android) |
+| `public/favicon.svg` / `favicon.ico` | favicon do site (M sobre o papel da prancha, detalhes em laranja) |
 
 As paredes são derivadas automaticamente das bordas dos ambientes. Para mudar a casa, edite os retângulos em `house.ts` e rode `npm test`: o validador confere sobreposições, áreas, se as aberturas cabem nas paredes e se a câmera só atravessa paredes pelos vãos.
 
@@ -45,7 +46,10 @@ As paredes são derivadas automaticamente das bordas dos ambientes. Para mudar a
 - **Scroll → `t` → cena.** O scroll (Lenis) vira um número `t` de 0 a 1, e `stateAt(t)` calcula câmera, revelação de cada ambiente, sol e céu. Voltar o scroll reproduz exatamente os mesmos quadros.
 - **Um material, dois mundos.** Todos os materiais compartilham um trecho de shader (`src/render/shaders/reveal.glsl.ts`) que decide, pixel a pixel, se aquele ponto ainda é "desenho" (papel) ou já é "render" (PBR), com a borda laranja nos blocos recém-revelados.
 - **Traço de nanquim.** Um pré-passe grava ID da peça, normal e profundidade. O efeito de composição (`CompositeEffect`) desenha as linhas só onde ainda é desenho.
-- **Luz que conta a história.** O sol vai do fim de tarde à hora azul ao longo do percurso. Piscina, cascata, fogo e luzes da casa acendem no final.
+- **Luz de fim de tarde.** O percurso inteiro acontece por volta das 17 h: sol baixo e quente, com a direção ajustada em cada parada para entrar pelos panos de vidro. No fim, a câmera sobe para uma vista aérea do lote inteiro antes de o papel desenrolar.
+- **Mata em volta do lote.** Árvores leves (menos folhas, maiores) num anel em volta do lote, fora do desenho da planta; o terreno usa a mesma textura de grama do lote, sem emenda na divisa. No nível de qualidade baixo, só ~55% das árvores.
+- **Celular.** O 3D usa o viewport grande (`100lvh`), então a barra de endereço não redimensiona o pós-processamento a cada rolagem. A régua dos ambientes vira horizontal no rodapé e a ficha do ambiente fica fixa acima dela.
+- **Pulos pela régua.** Para o próximo ambiente, a câmera segue o percurso; para trás ou para longe, o quadro atual se dissolve sobre o destino (sem rolar todas as cenas no caminho).
 
 ## Desempenho
 

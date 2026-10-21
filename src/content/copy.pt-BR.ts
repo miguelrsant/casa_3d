@@ -31,6 +31,7 @@ export const copy = {
   hints: {
     enter: 'ROLE PARA ENTRAR',
     marker: 'CLIQUE NO MARCADOR PARA ABRIR A FICHA',
+    markerTouch: 'TOQUE NO MARCADOR PARA ABRIR A FICHA',
     next: 'ROLE PARA O PRÓXIMO AMBIENTE',
     aerial: 'ROLE PARA VOLTAR À PLANTA',
     end: 'FIM DO PERCURSO',
@@ -53,6 +54,14 @@ export const copy = {
 
   loader: {
     label: 'DESENHANDO A PLANTA',
+    stages: {
+      textures: 'MATERIAIS',
+      architecture: 'ARQUITETURA',
+      landscape: 'PAISAGISMO',
+      light: 'LUZ DO FIM DE TARDE',
+      compile: 'MONTANDO A CENA',
+      ready: 'PRONTO',
+    },
   },
 
   cta: {

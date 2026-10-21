@@ -2,18 +2,25 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Casa Brisa — miguelrsant</title>
     <meta name="description" content="Uma planta baixa que vira casa 3D conforme você rola a página. Casa Brisa, um projeto miguelrsant." />
     <meta name="theme-color" content="#E8E5DF" />
-    <link rel="icon" type="image/svg+xml" href="/brand/miguelrsant-icon.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
   </head>
   <body class="is-loading">
-    <div class="loader" id="loader" role="status" aria-live="polite">
-      <div>
-        <div id="loader-label">DESENHANDO A PLANTA</div>
+    <div class="loader" id="loader" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-labelledby="loader-label">
+      <div class="loader__box">
+        <div class="loader__head">
+          <div class="loader__label" id="loader-label">DESENHANDO A PLANTA</div>
+          <div class="loader__stage" id="loader-stage" aria-live="polite"></div>
+        </div>
+        <div class="loader__pct"><b id="loader-pct">0</b><span>%</span></div>
         <div class="loader__bar"><i></i></div>
+        <div class="loader__scale" aria-hidden="true"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
       </div>
     </div>
     <canvas id="scene" aria-hidden="true"></canvas>

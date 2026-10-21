@@ -139,6 +139,8 @@ const G = {
   yellow: new Color('#e8b62a'),
   ipe: new Color('#e9c133'),
   coconut: new Color('#6d5a2a'),
+  mata: new Color('#36552a'),
+  mataDeep: new Color('#263f1d'),
 };
 
 /** Folha de palmeira: ráquis em arco com folíolos dos dois lados. */
@@ -382,8 +384,11 @@ function shrub(seed: number, rx: number, ry: number, palette: Color[], weights?:
   return { leaves: leaves.geometry(), wood: null, height: ry * 2, radius: rx };
 }
 
-function tree(seed: number, opts: { H: number; crown: number; colors: Color[]; weights?: number[]; bark?: Color }): Built {
+/** `density` < 1: menos folhas, maiores (a mata em volta do lote só é vista de longe). */
+function tree(seed: number, opts: { H: number; crown: number; colors: Color[]; weights?: number[]; bark?: Color; density?: number }): Built {
   const r = rng(seed);
+  const dn = opts.density ?? 1;
+  const leafSize = 1 / Math.sqrt(dn);
   const leaves = new Acc();
   const wood = new Acc();
   const H = opts.H * (0.85 + r() * 0.3);
@@ -398,9 +403,9 @@ function tree(seed: number, opts: { H: number; crown: number; colors: Color[]; w
     const end = new Vector3(fork.x + Math.cos(a) * len, fork.y + H * 0.3 + r() * H * 0.15, fork.z + Math.sin(a) * len);
     const mid = fork.clone().lerp(end, 0.5).add(new Vector3(0, 0.4, 0));
     tube(wood, new CatmullRomCurve3([fork.clone(), mid, end]), 8, 6, (u) => 0.12 * (1 - u * 0.7) * (opts.H / 8), () => bark);
-    cluster(leaves, end.clone().add(new Vector3(0, 0.3, 0)), opts.crown * 0.55, opts.crown * 0.38, opts.crown * 0.55, Math.round(520 * opts.crown * opts.crown * 0.35), 0.1, r, opts.colors, opts.weights);
+    cluster(leaves, end.clone().add(new Vector3(0, 0.3, 0)), opts.crown * 0.55, opts.crown * 0.38, opts.crown * 0.55, Math.round(520 * opts.crown * opts.crown * 0.35 * dn), 0.1 * leafSize, r, opts.colors, opts.weights);
   }
-  cluster(leaves, new Vector3(fork.x, fork.y + H * 0.42, fork.z), opts.crown * 0.8, opts.crown * 0.45, opts.crown * 0.8, Math.round(700 * opts.crown * opts.crown * 0.35), 0.11, r, opts.colors, opts.weights);
+  cluster(leaves, new Vector3(fork.x, fork.y + H * 0.42, fork.z), opts.crown * 0.8, opts.crown * 0.45, opts.crown * 0.8, Math.round(700 * opts.crown * opts.crown * 0.35 * dn), 0.11 * leafSize, r, opts.colors, opts.weights);
   return { leaves: leaves.geometry(), wood: wood.geometry(), height: H + opts.crown, radius: opts.crown * 1.2 };
 }
 
@@ -488,7 +493,7 @@ function vegMaterial(kind: 'leaf' | 'wood'): MeshStandardMaterial {
 
 // ------------------------------------------------------------------ plano de plantio
 
-export type Species = 'royal' | 'coconut' | 'areca' | 'fern' | 'heliconia' | 'monstera' | 'shrub' | 'topiary' | 'bougainvillea' | 'jabuticaba' | 'ipe' | 'canopy';
+export type Species = 'royal' | 'coconut' | 'areca' | 'fern' | 'heliconia' | 'monstera' | 'shrub' | 'topiary' | 'bougainvillea' | 'jabuticaba' | 'ipe' | 'canopy' | 'mata';
 
 export interface Plant {
   species: Species;
@@ -498,6 +503,8 @@ export interface Plant {
   s?: number;
   rot?: number;
   variant?: number;
+  /** Mata em volta do lote: fora do desenho da planta, só a geometria leve e lotes maiores. */
+  forest?: boolean;
 }
 
 const P = (species: Species, x: number, z: number, s = 1, y = 0): Plant => ({ species, x, z, s, y });
@@ -550,6 +557,39 @@ export function plantingPlan(): Plant[] {
   return out.map((p, i) => ({ ...p, rot: rng(i + 7)() * Math.PI * 2, variant: i }));
 }
 
+/**
+ * Mata em volta do lote (o que aparece na vista aérea do fim e ao fundo nas vistas do jardim):
+ * grade com jitter, sem o lote (com folga), sem o corredor do acesso e com algumas clareiras.
+ */
+export function forestPlan(site: { x0: number; z0: number; x1: number; z1: number }, accessX: [number, number]): Plant[] {
+  const out: Plant[] = [];
+  const r = rng(4242);
+  const STEP = 8;
+  const M = 3; // folga até a divisa (as copas do cinturão do lote ficam por dentro)
+  const X0 = site.x0 - 68;
+  const X1 = site.x1 + 68;
+  const Z0 = site.z0 - 30;
+  const Z1 = site.z1 + 32;
+  for (let gx = X0; gx <= X1; gx += STEP) {
+    for (let gz = Z0; gz <= Z1; gz += STEP) {
+      const x = gx + (r() - 0.5) * STEP * 0.9;
+      const z = gz + (r() - 0.5) * STEP * 0.9;
+      const scale = 1.05 + r() * 0.55;
+      const roll = r();
+      const spin = r();
+      if (x > site.x0 - M && x < site.x1 + M && z > site.z0 - M && z < site.z1 + M) continue;
+      if (z > site.z1 && x > accessX[0] && x < accessX[1]) continue; // a rua de acesso continua para o sul
+      // clareiras suaves longe da divisa (a mata não vira um tapete uniforme)
+      const edge = Math.max(site.x0 - x, x - site.x1, site.z0 - z, z - site.z1);
+      const glade = Math.sin(x * 0.071 + 1.3) * Math.cos(z * 0.083 - 0.4) + Math.sin((x + z) * 0.041);
+      if (edge > 14 && glade > 0.95) continue;
+      const species: Species = roll < 0.08 ? 'ipe' : roll < 0.17 ? 'coconut' : 'mata';
+      out.push({ species, x, z, s: scale, rot: spin * Math.PI * 2, variant: species === 'mata' ? out.length % 2 : 0, forest: true });
+    }
+  }
+  return out;
+}
+
 interface Batch {
   leaves: InstancedMesh;
   wood: InstancedMesh | null;
@@ -571,7 +611,8 @@ const LOD_HYST = 4;
 /** Fração das folhas na geometria de longe. */
 const LOD_DETAIL = 0.3;
 
-function build(species: Species, seed: number): Built {
+/** `dn` < 1 (mata em volta do lote): árvores com menos folhas, maiores. */
+function build(species: Species, seed: number, dn = 1): Built {
   switch (species) {
     case 'royal':
       return royalPalm(seed);
@@ -594,23 +635,28 @@ function build(species: Species, seed: number): Built {
     case 'jabuticaba':
       return tree(seed, { H: 5, crown: 2.6, colors: [G.leafDark, G.leaf], bark: new Color('#6b5a4a') });
     case 'ipe':
-      return tree(seed, { H: 7, crown: 3.2, colors: [G.ipe, G.yellow, G.leaf], weights: [0.5, 0.25, 0.25] });
+      return tree(seed, { H: 7, crown: 3.2, colors: [G.ipe, G.yellow, G.leaf], weights: [0.5, 0.25, 0.25], density: dn });
     case 'canopy':
-      return tree(seed, { H: 8, crown: 3.6, colors: [G.leaf, G.leafDark, G.leafLight] });
+      return tree(seed, { H: 8, crown: 3.6, colors: [G.leaf, G.leafDark, G.leafLight], density: dn });
+    case 'mata':
+      return tree(seed, { H: 10, crown: 4.2, colors: [G.mataDeep, G.mata, G.leafDark, G.leafLight], weights: [0.3, 0.35, 0.25, 0.1], density: dn });
   }
 }
 
 /** Gera a vegetação instanciada (variantes por espécie) e o controle de crescimento por zona. */
-export function buildVegetation(h: House, group: Group): Vegetation {
-  const plants = plantingPlan();
+export function buildVegetation(h: House, group: Group, forest: Plant[] = []): Vegetation {
+  const garden = plantingPlan();
+  const plants = [...garden, ...forest];
   const leafMat = vegMaterial('leaf');
   const woodMat = vegMaterial('wood');
   const VARIANTS = 3;
   const batches: Batch[] = [];
   const bySpecies = new Map<string, Plant[]>();
   const CELL = 20; // m
+  const FOREST_CELL = 60; // lotes maiores na mata: menos chamadas de desenho
   for (const p of plants) {
-    const key = `${p.species}:${(p.variant ?? 0) % VARIANTS}:${Math.floor(p.x / CELL)},${Math.floor(p.z / CELL)}`;
+    const cell = p.forest ? FOREST_CELL : CELL;
+    const key = `${p.forest ? 'forest+' : ''}${p.species}:${(p.variant ?? 0) % VARIANTS}:${Math.floor(p.x / cell)},${Math.floor(p.z / cell)}`;
     if (!bySpecies.has(key)) bySpecies.set(key, []);
     bySpecies.get(key)!.push(p);
   }
@@ -618,14 +664,17 @@ export function buildVegetation(h: House, group: Group): Vegetation {
   const built = new Map<string, { near: Built; far: Built }>();
   const detail = DETAIL;
   for (const [key, list] of bySpecies) {
-    const [species, v] = key.split(':');
-    const kind = `${species}:${v}`;
+    const [tag, v] = key.split(':');
+    const isForest = tag.startsWith('forest+');
+    const species = (isForest ? tag.slice('forest+'.length) : tag) as Species;
+    const kind = `${tag}:${v}`;
     if (!built.has(kind)) {
-      const seed = 1000 + Number(v) * 17 + species.length * 101;
-      const near = build(species as Species, seed);
+      const seed = 1000 + Number(v) * 17 + species.length * 101 + (isForest ? 7 : 0);
       DETAIL = detail * LOD_DETAIL;
-      const far = build(species as Species, seed);
+      const far = build(species, seed, isForest ? 0.12 : 1);
       DETAIL = detail;
+      // a mata só é vista de longe: usa a geometria leve sempre
+      const near = isForest ? far : build(species, seed);
       built.set(kind, { near, far });
     }
     const { near, far } = built.get(kind)!;
@@ -670,7 +719,7 @@ export function buildVegetation(h: House, group: Group): Vegetation {
   const t = new Vector3();
   return {
     group,
-    plants,
+    plants: garden,
     update(reveal, dt, eye) {
       vegUniforms.uTime.value += dt;
       for (const b of batches) {
@@ -738,5 +787,7 @@ export function symbolRadius(p: Plant): number {
       return 3.2 * s;
     case 'canopy':
       return 3.6 * s;
+    case 'mata':
+      return 4.2 * s;
   }
 }

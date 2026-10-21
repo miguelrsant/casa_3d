@@ -1,7 +1,7 @@
 import { Color, FogExp2, Group, MathUtils, PerspectiveCamera, PlaneGeometry, Scene, Vector2, Vector3 } from 'three';
 import Lenis from 'lenis';
 import { copy } from './content/copy.pt-BR';
-import { house } from './data/house';
+import { drive, house } from './data/house';
 import { zoneIndex } from './data/schema';
 import { buildZoneMap, RV } from './render/zones';
 import { Renderer, detectTier } from './render/renderer';
@@ -13,11 +13,11 @@ import { furnish, glowMaterials } from './gen/furniture';
 import { createFire } from './gen/fire';
 import { createWaterfall } from './gen/waterfall';
 import { Reflector } from 'three/addons/objects/Reflector.js';
-import { buildVegetation, setVegetationDetail, symbolRadius, vegUniforms } from './gen/vegetation';
+import { buildVegetation, forestPlan, setVegetationDetail, symbolRadius, vegUniforms } from './gen/vegetation';
 import { buildLandscape } from './gen/landscape';
 import { SkySystem } from './gen/sky';
 import { LightRig } from './render/lightRig';
-import { stateAt, type HeroPose, type SceneState } from './story/stateAt';
+import { stateAt, type HeroPose, type Pose, type SceneState } from './story/stateAt';
 import { sunKeys } from './story/stops';
 import { buildStory, buildUI, drawScaleBar } from './ui/dom';
 import { Hud } from './ui/hud';
@@ -27,13 +27,57 @@ import { FileModal } from './ui/fileModal';
 const PLAN = { x0: -8.6, x1: 45.2, z0: -18.6, z1: 30.2 };
 const SCROLL_VH = 2600;
 
+/**
+ * Carregamento de 0 a 100%. As etapas reais chegam aos saltos (e a compilação dos shaders demora),
+ * então o número anda suave até a etapa e segue avançando devagar enquanto ela não termina.
+ */
 const loader = {
   el: document.getElementById('loader')!,
-  bar: document.querySelector<HTMLElement>('.loader__bar i')!,
-  set(p: number) {
-    this.bar.style.setProperty('--p', p.toFixed(3));
+  pct: document.getElementById('loader-pct')!,
+  stage: document.getElementById('loader-stage')!,
+  target: 0,
+  shown: 0,
+  finishing: false,
+  raf: 0,
+  last: performance.now(),
+  set(p: number, stage?: string) {
+    this.target = Math.max(this.target, Math.min(1, p));
+    if (stage && this.stage.textContent !== stage) {
+      this.stage.textContent = stage;
+      // reinicia o fade da etapa
+      this.stage.style.animation = 'none';
+      void this.stage.offsetWidth;
+      this.stage.style.animation = '';
+    }
+    if (!this.raf) this.raf = requestAnimationFrame((t) => this.tick(t));
+  },
+  tick(now: number) {
+    const dt = Math.min(0.1, (now - this.last) / 1000);
+    this.last = now;
+    // anda até a etapa atual e, enquanto ela não termina, avança devagar (no máximo 6 pontos além)
+    if (this.shown < this.target - 0.004) this.shown += (this.target - this.shown) * (1 - Math.exp(-dt * (this.finishing ? 9 : 4)));
+    else if (!this.finishing) this.shown += (Math.min(this.target + 0.06, 0.99) - this.shown) * (1 - Math.exp(-dt * 0.35));
+    else this.shown = 1;
+    if (this.shown > 0.9995) this.shown = 1;
+    const v = this.shown;
+    this.el.style.setProperty('--p', v.toFixed(4));
+    const n = String(Math.floor(v * 100));
+    if (this.pct.textContent !== n) {
+      this.pct.textContent = n;
+      this.el.setAttribute('aria-valuenow', n);
+    }
+    if (this.finishing && v >= 1) {
+      this.raf = 0;
+      this.hide();
+      return;
+    }
+    this.raf = requestAnimationFrame((t) => this.tick(t));
   },
   done() {
+    this.set(1, copy.loader.stages.ready);
+    this.finishing = true;
+  },
+  hide() {
     this.el.classList.add('is-done');
     document.body.classList.remove('is-loading');
     setTimeout(() => this.el.remove(), 900);
@@ -104,6 +148,16 @@ export async function startApp() {
   const ui = buildUI();
   buildStory(SCROLL_VH);
   const canvas = document.getElementById('scene') as HTMLCanvasElement;
+  /**
+   * Tamanho de desenho = tamanho do canvas no CSS (100lvh): no celular, a barra de endereço aparece e some
+   * a cada rolagem e mudaria innerHeight; redimensionar o pós-processamento a cada vez travava o scroll.
+   */
+  const view = { w: 1, h: 1 };
+  const measure = () => {
+    view.w = canvas.clientWidth || innerWidth;
+    view.h = canvas.clientHeight || innerHeight;
+  };
+  measure();
   const scene = new Scene();
   // névoa atmosférica (sempre presente: ligar/desligar recompilaria os shaders)
   const fog = new FogExp2(0xc9d6df, 0.0032);
@@ -111,17 +165,17 @@ export async function startApp() {
   const fogDay = new Color('#c9d6df');
   const fogGold = new Color('#d8d2c2');
   const fogDusk = new Color('#1d2233');
-  const camera = new PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 600);
+  const camera = new PerspectiveCamera(50, view.w / view.h, 0.05, 600);
   const tier = detectTier();
 
   const renderer = new Renderer(canvas, scene, camera, tier);
   const quality = renderer.quality;
-  renderer.resize(innerWidth, innerHeight);
-  loader.set(0.06);
+  renderer.resize(view.w, view.h);
+  loader.set(0.06, copy.loader.stages.textures);
   await frame();
   // texturas procedurais (assadas na GPU) antes de criar os materiais
   initLibrary(await bakeTextures(renderer.gl, quality.tex, (p) => loader.set(0.06 + 0.14 * p)));
-  loader.set(0.2);
+  loader.set(0.2, copy.loader.stages.architecture);
   await frame();
 
   buildZoneMap(house);
@@ -136,8 +190,8 @@ export async function startApp() {
   // espelho do banho: reflexo real, ligado só quando a câmera está no banho
   const mirror = new Reflector(new PlaneGeometry(2.22, 0.97), {
     clipBias: 0.003,
-    textureWidth: Math.round(innerWidth * quality.mirror),
-    textureHeight: Math.round(innerHeight * quality.mirror),
+    textureWidth: Math.round(view.w * quality.mirror),
+    textureHeight: Math.round(view.h * quality.mirror),
     color: 0xb9bdbd,
     multisample: 0,
   });
@@ -147,14 +201,16 @@ export async function startApp() {
   scene.add(mirror);
   const bath = house.rooms.find((r) => r.id === 'banho')!.rect;
   const poolWater = miscMaterial('poolWater');
-  loader.set(0.34);
+  loader.set(0.34, copy.loader.stages.landscape);
   await frame();
 
   const vegGroup = new Group();
   vegGroup.name = 'vegetation';
   scene.add(vegGroup);
   setVegetationDetail(quality.veg);
-  const veg = buildVegetation(house, vegGroup);
+  // mata em volta do lote (deixa o corredor da rua de acesso livre)
+  const forest = forestPlan(house.site, [drive.street.x0 - 2.5, drive.street.x1 + 2.5]).filter((_, i) => ((i * 0.6180339) % 1) < quality.forestTrees);
+  const veg = buildVegetation(house, vegGroup, forest);
   const landGroup = new Group();
   landGroup.name = 'landscape';
   scene.add(landGroup);
@@ -171,17 +227,23 @@ export async function startApp() {
   const tmName = params.get('tm') ?? 'aces';
   renderer.composite.set('uToneMap', Math.max(0, ['agx', 'aces', 'neutral'].indexOf(tmName)));
   const expBias = Number(params.get('exp') ?? 1);
-  loader.set(0.45);
+  loader.set(0.45, copy.loader.stages.light);
   await frame();
 
-  sky.precompute(renderer.gl, sunKeys.filter((k, i) => i === 0 || k.el !== sunKeys[i - 1].el).map((k) => ({ az: k.az, el: k.el })), quality.env);
+  sky.precompute(renderer.gl, sunKeys.filter((k, i) => sunKeys.findIndex((o) => o.el === k.el) === i).map((k) => ({ az: k.az, el: k.el })), quality.env);
   scene.environment = sky.envFor(32);
   loader.set(0.62);
   await notes.sync();
-  loader.set(0.75);
+  loader.set(0.75, copy.loader.stages.compile);
 
   // enquadramento do hero a partir do slot da planta no DOM
-  const hero: HeroPose & { slot: DOMRect } = { pos: new Vector3(), target: new Vector3(), fov: 12, slot: new DOMRect() };
+  const hero: HeroPose & { slot: DOMRect; aerial: Pose } = {
+    pos: new Vector3(),
+    target: new Vector3(),
+    fov: 12,
+    slot: new DOMRect(),
+    aerial: { pos: new Vector3(), target: new Vector3(), fov: 30 },
+  };
   const computeHero = () => {
     const r = ui.slot.getBoundingClientRect();
     hero.slot = r;
@@ -195,18 +257,39 @@ export async function startApp() {
     hero.pos.set(cx, dist, cz);
     hero.target.set(cx, 0, cz);
     drawScaleBar(ui.scaleBar, r.height / (halfH * 2));
+
+    // vista aérea do fim: o lote inteiro (com o acesso) centralizado na tela cheia, com folga para o HUD
+    const site = house.site;
+    const a = hero.aerial;
+    const sw = site.x1 - site.x0;
+    const sd = site.z1 - site.z0;
+    const aspectFull = view.w / Math.max(1, view.h);
+    const compact = view.w < 760;
+    const padY = compact ? 0.15 : 0.13;
+    const padX = compact ? 0.03 : 0.17;
+    const aHalf = Math.max(sd / 2 / (1 - 2 * padY), sw / 2 / aspectFull / (1 - 2 * padX));
+    const aDist = aHalf / Math.tan(MathUtils.degToRad(a.fov / 2));
+    a.pos.set((site.x0 + site.x1) / 2, aDist, (site.z0 + site.z1) / 2);
+    a.target.set(a.pos.x, 0, a.pos.z);
   };
 
+  let drawn = { w: 0, h: 0, scale: 0 };
   const resize = () => {
-    renderer.resize(innerWidth, innerHeight);
-    notes.setResolution(innerWidth * renderer.dpr, innerHeight * renderer.dpr);
+    measure();
+    if (view.w !== drawn.w || view.h !== drawn.h || renderer.scale !== drawn.scale) {
+      renderer.resize(view.w, view.h);
+      notes.setResolution(view.w * renderer.dpr, view.h * renderer.dpr);
+      drawn = { w: view.w, h: view.h, scale: renderer.scale };
+    }
     computeHero();
   };
   resize();
   addEventListener('resize', resize);
+  addEventListener('orientationchange', () => setTimeout(resize, 250));
 
   const lastSun = new Vector3();
   const lastCenter = new Vector3(1e9, 0, 0);
+  let lastRadius = 0;
   const center = new Vector3();
   const tmp = new Vector3();
 
@@ -244,7 +327,7 @@ export async function startApp() {
   const lenis = new Lenis({ lerp: reduced ? 1 : 0.085, wheelMultiplier: 0.85, smoothWheel: !reduced });
   const modal = new FileModal({ onOpen: () => lenis.stop(), onClose: () => lenis.start() });
   const hud = new Hud(ui, {
-    onJump: (t) => lenis.scrollTo(t * lenis.limit, { duration: 2.4 }),
+    onJump: (t) => jumpTo(t),
     onOpenFile: (i) => modal.open(i),
   });
   // volta ao ponto do percurso depois de um recarregamento automático
@@ -252,6 +335,49 @@ export async function startApp() {
   store.set(RESUME_KEY, null);
   const qt = Number(new URLSearchParams(location.search).get('t')) || resume;
   if (qt > 0) lenis.scrollTo(qt * lenis.limit, { immediate: true, force: true });
+
+  // --- pulo pela régua ---
+  // Para o próximo ambiente, a câmera segue o percurso. Para trás ou para longe, rolar o percurso inteiro
+  // em 2 s passava por todas as cenas (e desfazia as revelações) num borrão: aí o último quadro
+  // congela sobre a tela, a cena salta para o destino e o quadro antigo se dissolve por cima.
+  const veil = Object.assign(document.createElement('canvas'), { id: 'jump-veil' });
+  veil.setAttribute('aria-hidden', 'true');
+  canvas.after(veil);
+  let pendingJump: number | null = null;
+  const easeInOutCubic = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  function jumpTo(t: number) {
+    const now = lenis.progress || 0;
+    const d = t - now;
+    if (Math.abs(d) < 0.004) return;
+    if (reduced) {
+      lenis.scrollTo(t * lenis.limit, { immediate: true, force: true });
+      return;
+    }
+    if (d > 0 && d < 0.12) {
+      lenis.scrollTo(t * lenis.limit, { duration: 1.2 + d * 10, easing: easeInOutCubic, force: true });
+      return;
+    }
+    pendingJump = t;
+  }
+  /** Chamado logo depois de desenhar o quadro (o buffer do WebGL ainda está intacto). */
+  function runPendingJump() {
+    if (pendingJump === null) return;
+    const t = pendingJump;
+    pendingJump = null;
+    veil.width = canvas.width;
+    veil.height = canvas.height;
+    veil.getContext('2d')?.drawImage(canvas, 0, 0);
+    veil.classList.remove('is-fading');
+    veil.style.cssText = 'opacity:1;visibility:visible;transform:none';
+    lenis.scrollTo(t * lenis.limit, { immediate: true, force: true });
+    // dois quadros: o primeiro desenha a cena nova por baixo, o segundo começa a dissolver
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        veil.style.cssText = '';
+        veil.classList.add('is-fading');
+      }),
+    );
+  }
 
   // --- loop ---
   let last = performance.now();
@@ -263,8 +389,8 @@ export async function startApp() {
     camera.up.copy(s.up);
     camera.lookAt(s.target);
     camera.fov = s.fov;
-    const W = innerWidth;
-    const H = innerHeight;
+    const W = view.w;
+    const H = view.h;
     const k = s.hero;
     const fullW = MathUtils.lerp(W, hero.slot.width, k);
     const fullH = MathUtils.lerp(H, hero.slot.height, k);
@@ -308,19 +434,24 @@ export async function startApp() {
     tmp.subVectors(s.target, s.pos).setY(0);
     if (tmp.lengthSq() > 1e-6) tmp.normalize();
     center.copy(s.pos).addScaledVector(tmp, 9).setY(0);
-    sky.update(s.sunAz, s.sunEl, center, 26);
+    // a sombra cobre o ambiente à altura dos olhos e o lote inteiro na vista aérea
+    const shadowR = 26 + 30 * MathUtils.smoothstep(s.pos.y, 25, 140);
+    sky.update(s.sunAz, s.sunEl, center, shadowR);
     const env = sky.envFor(s.sunEl);
     if (env && scene.environment !== env) scene.environment = env;
-    if (sky.direction.distanceToSquared(lastSun) > quality.shadowTurn || center.distanceToSquared(lastCenter) > quality.shadowMove || (s.pivot > 0 && s.pivot < 1)) {
+    if (sky.direction.distanceToSquared(lastSun) > quality.shadowTurn || center.distanceToSquared(lastCenter) > quality.shadowMove || Math.abs(shadowR - lastRadius) > 0.5 || (s.pivot > 0 && s.pivot < 1)) {
       if (s.sky > 0.01) renderer.gl.shadowMap.needsUpdate = true; // não cancela uma atualização pendente
       lastSun.copy(sky.direction);
       lastCenter.copy(center);
+      lastRadius = shadowR;
     }
     fog.color.copy(fogDusk).lerp(fogGold, MathUtils.smoothstep(s.sunEl, -1, 6)).lerp(fogDay, MathUtils.smoothstep(s.sunEl, 8, 24));
     fog.density = 0.0032 * (1 - MathUtils.smoothstep(s.pos.y, 12, 60));
     renderer.composite.set('uSkyReveal', s.sky);
-    scene.environmentIntensity = (0.16 + 0.24 * MathUtils.smoothstep(s.sunEl, -4, 12)) * lights.envFactor;
-    (renderer.composite.uniforms.get('uInkFade')!.value as Vector2).set(s.hero > 0.5 ? 1e4 : 16, s.hero > 0.5 ? 2e4 : 46);
+    scene.environmentIntensity = (0.2 + 0.42 * MathUtils.smoothstep(s.sunEl, -4, 12)) * lights.envFactor;
+    // o traço distante esmaece na tela cheia; no hero não. A troca é contínua (antes virava de uma vez no meio da descida)
+    const hk = MathUtils.smoothstep(s.hero, 0.15, 0.85);
+    (renderer.composite.uniforms.get('uInkFade')!.value as Vector2).set(16 * Math.pow(1e4 / 16, hk), 46 * Math.pow(2e4 / 46, hk));
     renderer.composite.set('uExposure', s.exposure * expBias);
     renderer.ink.active = s.reveal.some((v, i) => i < 22 && v < 0.999) || s.t < 0.15;
   }
@@ -346,8 +477,9 @@ export async function startApp() {
     stateAt(Number.isFinite(t) ? t : 0, hero, state);
     applyState(state);
     renderer.roll.roll = state.roll < 1 ? state.roll : 0;
-    hud.update(state, camera, innerWidth, innerHeight);
+    hud.update(state, camera, view.w, view.h);
     renderer.render(dt);
+    runPendingJump();
     probe(dt);
     debug?.update();
     if (alive) requestAnimationFrame(loop);

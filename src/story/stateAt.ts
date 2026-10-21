@@ -1,12 +1,20 @@
 import { Vector3 } from 'three';
-import { ZONES, zoneIndex } from '../data/schema';
+import { ZONES, zoneIndex, type CameraKey } from '../data/schema';
 import { cameraKeys, finale, finaleWave, stops, sunKeys, type Key } from './stops';
 
-export interface HeroPose {
+export interface Pose {
   pos: Vector3;
   target: Vector3;
   fov: number;
 }
+
+/** Enquadramento do hero (slot da planta) e, opcionalmente, a vista aérea do lote inteiro (tela cheia). */
+export interface HeroPose extends Pose {
+  aerial?: Pose;
+}
+
+/** Vista aérea padrão (quando o app não calculou uma para a tela atual). */
+const AERIAL_FALLBACK: Pose = { pos: new Vector3(18, 170, 16), target: new Vector3(18, 0, 16), fov: 30 };
 
 export interface SceneState {
   t: number;
@@ -43,50 +51,63 @@ const smooth = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 const easeInOut = (u: number) => u * u * (3 - 2 * u);
-const easeIn = (u: number) => u * u;
-const easeOut = (u: number) => 1 - (1 - u) * (1 - u);
 
 const _a = new Vector3();
-const _b = new Vector3();
-const _c = new Vector3();
-const _d = new Vector3();
+const _v = [new Vector3(), new Vector3(), new Vector3(), new Vector3(), new Vector3()];
 
-function keyPos(k: Key, hero: HeroPose, out: Vector3) {
-  return k.hero ? out.copy(hero.pos) : out.set(...k.pos);
+type Channel = (n: number, out: Vector3) => Vector3;
+
+function keyPose(k: Key, hero: HeroPose): Pose | null {
+  if (k.hero) return hero;
+  if (k.aerial) return hero.aerial ?? AERIAL_FALLBACK;
+  return null;
 }
-function keyTarget(k: Key, hero: HeroPose, out: Vector3) {
-  return k.hero ? out.copy(hero.target) : out.set(...k.target);
-}
-function keyFov(k: Key, hero: HeroPose, prev: number) {
-  return k.hero ? hero.fov : (k.fov ?? prev);
+function keyVec(k: Key, hero: HeroPose, which: 'pos' | 'target', out: Vector3) {
+  const p = keyPose(k, hero);
+  return p ? out.copy(p[which]) : out.set(...(k as CameraKey)[which]);
 }
 
-/** Catmull-Rom centrípeta entre p1 e p2. */
-function catmull(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, u: number, out: Vector3) {
-  const alpha = 0.5;
-  const t01 = Math.pow(p0.distanceTo(p1) + 1e-4, alpha);
-  const t12 = Math.pow(p1.distanceTo(p2) + 1e-4, alpha);
-  const t23 = Math.pow(p2.distanceTo(p3) + 1e-4, alpha);
-  const m1 = new Vector3()
-    .subVectors(p2, p1)
-    .add(new Vector3().subVectors(p1, p0).multiplyScalar(t12 / t01))
-    .sub(new Vector3().subVectors(p2, p0).multiplyScalar(t12 / (t01 + t12)));
-  const m2 = new Vector3()
-    .subVectors(p2, p1)
-    .add(new Vector3().subVectors(p3, p2).multiplyScalar(t12 / t23))
-    .sub(new Vector3().subVectors(p3, p1).multiplyScalar(t12 / (t12 + t23)));
+/**
+ * A altura é interpolada em escala logarítmica: descer de 250 m para 50 m tem a mesma
+ * "velocidade de zoom" do começo ao fim (em metros, a descida parecia parada e depois despencava).
+ */
+const LOG_Y = 4;
+
+/**
+ * Derivada em t de um canal numa chave intermediária: parábola pelos três pontos,
+ * limitada como numa cúbica monótona (sem passar da chave nem voltar para trás).
+ */
+function slope(a: number, b: number, c: number, d0: number, d1: number) {
+  const s0 = (b - a) / d0;
+  const s1 = (c - b) / d1;
+  if (s0 * s1 <= 0) return 0;
+  const m = (s0 * d1 + s1 * d0) / (d0 + d1);
+  const lim = 3 * Math.min(Math.abs(s0), Math.abs(s1));
+  return Math.sign(m) * Math.min(Math.abs(m), lim);
+}
+
+/** Velocidade da chave i (por unidade de t): zero nas paradas ("hold") e nas pontas. */
+function keyVelocity(i: number, ch: Channel, out: Vector3) {
+  const K = cameraKeys;
+  if (i <= 0 || i >= K.length - 1 || K[i].ease === 'hold') return out.set(0, 0, 0);
+  const d0 = K[i].t - K[i - 1].t;
+  const d1 = K[i + 1].t - K[i].t;
+  const a = ch(i - 1, _v[2]);
+  const b = ch(i, _v[3]);
+  const c = ch(i + 1, _v[4]);
+  return out.set(slope(a.x, b.x, c.x, d0, d1), slope(a.y, b.y, c.y, d0, d1), slope(a.z, b.z, c.z, d0, d1));
+}
+
+/** Hermite cúbica entre as chaves i e i+1 com velocidade contínua em t: sem solavanco ao passar pelas chaves. */
+function hermite(i: number, u: number, ch: Channel, out: Vector3) {
+  const dt = cameraKeys[i + 1].t - cameraKeys[i].t;
+  const v1 = keyVelocity(i, ch, _v[0]).multiplyScalar(dt);
+  const v2 = keyVelocity(i + 1, ch, _v[1]).multiplyScalar(dt);
   const u2 = u * u;
   const u3 = u2 * u;
-  const h00 = 2 * u3 - 3 * u2 + 1;
-  const h10 = u3 - 2 * u2 + u;
-  const h01 = -2 * u3 + 3 * u2;
-  const h11 = u3 - u2;
-  return out
-    .copy(p1)
-    .multiplyScalar(h00)
-    .addScaledVector(m1, h10)
-    .addScaledVector(p2, h01)
-    .addScaledVector(m2, h11);
+  out.copy(ch(i, _v[2])).multiplyScalar(2 * u3 - 3 * u2 + 1);
+  out.addScaledVector(ch(i + 1, _v[2]), -2 * u3 + 3 * u2);
+  return out.addScaledVector(v1, u3 - 2 * u2 + u).addScaledVector(v2, u3 - u2);
 }
 
 const fovs: number[] = [];
@@ -108,38 +129,27 @@ export function stateAt(t: number, hero: HeroPose, out?: SceneState): SceneState
   const K = cameraKeys;
   let i = 0;
   while (i < K.length - 2 && t > K[i + 1].t) i++;
-  const k1 = K[i];
-  const k2 = K[i + 1];
-  const k0 = K[Math.max(0, i - 1)];
-  const k3 = K[Math.min(K.length - 1, i + 2)];
-  let u = clamp01((t - k1.t) / Math.max(1e-6, k2.t - k1.t));
-  const h1 = k1.ease === 'hold';
-  const h2 = k2.ease === 'hold';
-  u = h1 && h2 ? easeInOut(u) : h1 ? easeIn(u) : h2 ? easeOut(u) : u;
-
-  keyPos(k0, hero, _a);
-  keyPos(k1, hero, _b);
-  keyPos(k2, hero, _c);
-  keyPos(k3, hero, _d);
-  catmull(h1 ? _b : _a, _b, _c, h2 ? _c : _d, u, s.pos);
-  keyTarget(k0, hero, _a);
-  keyTarget(k1, hero, _b);
-  keyTarget(k2, hero, _c);
-  keyTarget(k3, hero, _d);
-  catmull(h1 ? _b : _a, _b, _c, h2 ? _c : _d, u, s.target);
-
+  const u = clamp01((t - K[i].t) / Math.max(1e-6, K[i + 1].t - K[i].t));
   if (!fovs.length) {
     let prev = 50;
     for (const k of K) {
-      if (!k.hero) prev = keyFov(k, hero, prev);
+      if (!k.hero && !k.aerial) prev = k.fov ?? prev;
       fovs.push(prev);
     }
   }
-  const f1 = k1.hero ? hero.fov : fovs[i];
-  const f2 = k2.hero ? hero.fov : fovs[i + 1];
-  s.fov = f1 + (f2 - f1) * u;
-  s.hero = (k1.hero ? 1 - u : 0) + (k2.hero ? u : 0);
-  if (k1.hero && k2.hero) s.hero = 1;
+  const posCh: Channel = (n, o) => {
+    keyVec(K[n], hero, 'pos', o);
+    return o.setY(Math.log(o.y + LOG_Y));
+  };
+  const tgtCh: Channel = (n, o) => keyVec(K[n], hero, 'target', o);
+  const fovCh: Channel = (n, o) => o.set(keyPose(K[n], hero)?.fov ?? fovs[n], 0, 0);
+  hermite(i, u, posCh, s.pos);
+  s.pos.setY(Math.exp(s.pos.y) - LOG_Y);
+  hermite(i, u, tgtCh, s.target);
+  s.fov = hermite(i, u, fovCh, _a).x;
+  // enquadramento do hero ↔ tela cheia: sempre com entrada e saída suaves
+  const e = easeInOut(u);
+  s.hero = (K[i].hero ? 1 - e : 0) + (K[i + 1].hero ? e : 0);
 
   // "cima" da câmera: norte (−z) quando olha para baixo, y no resto
   const dir = _a.subVectors(s.target, s.pos).normalize();
@@ -157,7 +167,7 @@ export function stateAt(t: number, hero: HeroPose, out?: SceneState): SceneState
   s.sunAz = a.az + (b.az - a.az) * su;
   s.sunEl = a.el + (b.el - a.el) * su;
   s.night = smooth(4, -2.5, s.sunEl);
-  s.exposure = 1 + 1.25 * s.night;
+  s.exposure = 1.15 + 1.25 * s.night;
   s.pivot = smooth(0.128, 0.146, t);
 
   // --- revelação ---
@@ -185,11 +195,12 @@ export function stateAt(t: number, hero: HeroPose, out?: SceneState): SceneState
     }
   }
 
-  s.hudLight = (t > 0.585 && t < 0.66) || (t > 0.705 && t < 0.905);
   s.heroText = 1 - smooth(0.004, 0.03, t);
   s.cta = smooth(finale.cta[0], finale.cta[1], t);
   s.roll = smooth(finale.roll[0], finale.roll[1], t);
   s.aerialLabels = smooth(finale.aerialLabels[0], finale.aerialLabels[0] + 0.012, t) * (1 - smooth(finale.roll[0], finale.roll[0] + 0.01, t));
+  // o percurso é de dia (fim de tarde): HUD escuro, exceto na vista aérea sobre a mata
+  s.hudLight = s.night > 0.5 || s.aerialLabels > 0.3;
   return s;
 }
 

@@ -79,15 +79,15 @@ export class LightRig {
       if (this.lights.length === 1) this.targets[0].copy(pts[1]);
       else pts.forEach((p, i) => this.targets[i]?.copy(p));
       const area = (x1 - x0) * (z1 - z0);
-      want = (0.7 + Math.min(area, 110) * 0.012) * (1 + 2.2 * s.night) * Math.min(1, s.sky * 1.5 + s.night);
+      want = (1.8 + Math.min(area, 110) * 0.03) * (1 + 1.2 * s.night) * Math.min(1, s.sky * 1.5 + s.night);
     }
     this.time += dt;
     const fl = 0.82 + 0.12 * Math.sin(this.time * 13.1) + 0.07 * Math.sin(this.time * 27.7 + 1.3) + 0.05 * Math.sin(this.time * 41.9);
     const lounge = s.reveal[zoneIndex('lounge')];
-    this.fire.intensity = 16 * s.night * lounge * fl;
+    this.fire.intensity = 16 * (0.3 + 0.7 * s.night) * lounge * fl;
     for (const l of this.pool) l.intensity = 9 * this.poolGain * s.night * s.reveal[zoneIndex('piscina')];
     const k = 1 - Math.exp(-dt * 4);
-    this.envFactor += ((room ? 0.55 : 1) - this.envFactor) * k;
+    this.envFactor += ((room ? 0.75 : 1) - this.envFactor) * k;
     this.intensity += (want - this.intensity) * k;
     for (let i = 0; i < this.lights.length; i++) {
       const l = this.lights[i];

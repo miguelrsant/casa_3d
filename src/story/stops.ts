@@ -5,7 +5,8 @@ import type { CameraKey, Stop, ZoneName } from '../data/schema';
  * As chaves "hero" usam o enquadramento calculado a partir do slot da planta no DOM.
  */
 export const HERO = 'hero' as const;
-export type Key = (CameraKey & { hero?: false }) | { t: number; hero: true; ease?: 'hold' | 'via' };
+/** `hero`: enquadramento da planta no slot do DOM · `aerial`: o lote inteiro centralizado na tela (ambos calculados pelo app). */
+export type Key = (CameraKey & { hero?: false; aerial?: false }) | { t: number; hero: true; aerial?: false; ease?: 'hold' | 'via' } | { t: number; aerial: true; hero?: false; ease?: 'hold' | 'via' };
 
 export const cameraKeys: Key[] = [
   { t: 0.0, hero: true, ease: 'hold' },
@@ -60,9 +61,12 @@ export const cameraKeys: Key[] = [
   // 07 · lounge do fogo
   { t: 0.775, pos: [31.2, 1.15, -6], target: [16, 1.2, -7.5], fov: 54, ease: 'hold' },
   { t: 0.81, pos: [31.0, 1.15, -6.1], target: [16, 1.2, -7.5], fov: 54, ease: 'hold' },
-  { t: 0.84, pos: [26, 20, 4], target: [19, 0, 3.4], fov: 42, ease: 'via' },
-  // vista aérea → papel → planta
-  { t: 0.87, hero: true, ease: 'hold' },
+  { t: 0.84, pos: [24, 24, 8], target: [19, 0, 10], fov: 40, ease: 'via' },
+  // vista aérea do lote inteiro (centralizada) → papel → planta
+  { t: 0.875, aerial: true, ease: 'hold' },
+  // a troca para o enquadramento do hero acontece com o papel já cobrindo a tela
+  { t: 0.951, aerial: true, ease: 'hold' },
+  { t: 0.953, hero: true, ease: 'hold' },
   { t: 1.0, hero: true, ease: 'hold' },
 ];
 
@@ -182,20 +186,21 @@ export const finale = {
   cta: [0.96, 0.99] as [number, number],
 };
 
-/** Sol ao longo do percurso (azimute, elevação). */
+/** Sol ao longo do percurso (azimute, elevação): fim de tarde, por volta das 17 h, do começo ao fim. */
 export const sunKeys: { t: number; az: number; el: number }[] = [
-  // direção artística: sudoeste na chegada (luz na fachada sul), noroeste dentro de casa
-  // (sol entrando pelos panos de vidro do norte) e pôr do sol de frente na piscina
-  { t: 0.0, az: 215, el: 34 },
-  { t: 0.125, az: 215, el: 34 },
-  { t: 0.205, az: 240, el: 30 },
-  { t: 0.3, az: 290, el: 24 },
-  { t: 0.365, az: 295, el: 18 },
-  { t: 0.435, az: 298, el: 12 },
-  { t: 0.495, az: 291, el: 5 },
-  { t: 0.592, az: 288, el: 2 },
-  { t: 0.675, az: 286, el: 0 },
-  { t: 0.775, az: 284, el: -2.5 },
-  { t: 0.87, az: 284, el: -3.5 },
-  { t: 1.0, az: 284, el: -3.5 },
+  // direção artística: sudoeste na chegada (luz na fachada sul) e noroeste dentro de casa
+  // (sol entrando pelos panos de vidro do norte). Na piscina e no lounge a câmera olha para oeste:
+  // lá o sol vem de sudoeste, de lado (de frente, às 17 h, estoura a imagem)
+  { t: 0.0, az: 225, el: 24 },
+  { t: 0.125, az: 225, el: 24 },
+  { t: 0.205, az: 245, el: 22 },
+  { t: 0.3, az: 288, el: 20 },
+  { t: 0.365, az: 292, el: 18 },
+  { t: 0.435, az: 296, el: 17 },
+  { t: 0.495, az: 238, el: 16 },
+  { t: 0.592, az: 290, el: 16 },
+  { t: 0.675, az: 288, el: 16 },
+  { t: 0.775, az: 222, el: 15 },
+  { t: 0.87, az: 235, el: 20 },
+  { t: 1.0, az: 235, el: 20 },
 ];
