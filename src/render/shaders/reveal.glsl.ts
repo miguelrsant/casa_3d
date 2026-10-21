@@ -15,7 +15,8 @@ uniform vec2 rvTile;
 int rvZoneAt(vec3 wp, vec3 wn) {
   vec2 xz = wp.xz + wn.xz * 0.2;
   vec2 uv = (xz - rvZoneBounds.xy) * rvZoneBounds.zw;
-  return int(texture2D(rvZoneMap, uv).r * 255.0 + 0.5);
+  // limitado ao tamanho de rvReveal: índice fora do array trava o shader em alguns drivers (nouveau)
+  return clamp(int(texture2D(rvZoneMap, uv).r * 255.0 + 0.5), 0, 31);
 }
 
 // x: revelado (0/1) · y: frescor (1 = acabou de revelar) · z: borda do bloco (0..1)

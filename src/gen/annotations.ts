@@ -45,6 +45,9 @@ function makeText(str: string, size: number, x: number, z: number, opts: { spaci
   t.anchorX = opts.anchorX ?? 'center';
   t.anchorY = 'middle';
   t.color = inkColor;
+  // com colorRanges o troika sempre preenche aTroikaGlyphColor; sem ele o shader lê um atributo
+  // desabilitado, e o driver nouveau desenha lixo magenta e trava a GPU
+  t.colorRanges = { 0: inkColor.getHex() };
   t.material = new MeshBasicMaterial({ transparent: true, depthWrite: false, toneMapped: false });
   t.rotation.x = -Math.PI / 2;
   if (opts.rotZ) t.rotation.z = opts.rotZ;

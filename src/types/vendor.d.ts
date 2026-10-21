@@ -11,6 +11,7 @@ declare module 'troika-three-text' {
     anchorX: number | string;
     anchorY: number | string;
     color: Color | number | string | null;
+    colorRanges: Record<number, Color | number | string> | null;
     fillOpacity: number;
     maxWidth: number;
     textAlign: string;

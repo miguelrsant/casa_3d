@@ -106,7 +106,7 @@ export class SkySystem {
   }
 
   /** Pré-calcula mapas de ambiente ao longo do horário (sem regenerar durante o scroll). */
-  precompute(renderer: WebGLRenderer, keys: SunKey[]) {
+  precompute(renderer: WebGLRenderer, keys: SunKey[], size: number) {
     const pmrem = new PMREMGenerator(renderer);
     const envScene = new Scene();
     const sky = new Sky();
@@ -129,7 +129,7 @@ export class SkySystem {
       sky.material.uniforms.uTwilight.value = fall(key.el, 2, -2.5) * 2.2;
       const day = MathUtils.smoothstep(key.el, -6, 20);
       groundMat.color.set('#c2b08c').multiplyScalar(0.15 + 0.85 * day);
-      const rt = pmrem.fromScene(envScene, 0, 0.1, 300);
+      const rt = pmrem.fromScene(envScene, 0, 0.1, 300, { size });
       this.envMaps.push({ key, tex: rt.texture });
     }
     pmrem.dispose();

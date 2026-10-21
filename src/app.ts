@@ -174,7 +174,7 @@ export async function startApp() {
   loader.set(0.45);
   await frame();
 
-  sky.precompute(renderer.gl, sunKeys.filter((k, i) => i === 0 || k.el !== sunKeys[i - 1].el).map((k) => ({ az: k.az, el: k.el })));
+  sky.precompute(renderer.gl, sunKeys.filter((k, i) => i === 0 || k.el !== sunKeys[i - 1].el).map((k) => ({ az: k.az, el: k.el })), quality.env);
   scene.environment = sky.envFor(32);
   loader.set(0.62);
   await notes.sync();

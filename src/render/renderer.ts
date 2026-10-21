@@ -38,7 +38,7 @@ export class Renderer {
   height = 1;
   dpr = 1;
 
-  /** Diagnóstico: ?pp=0 desliga o pós; ?ao=0, ?smaa=0, ?bloom=0, ?ink=0, ?comp=0, ?hf=0 mexem nos passes; ?sh=0 desliga as sombras. */
+  /** Diagnóstico: ?pp=0 desliga o pós; ?ao=0, ?smaa=0, ?bloom=0, ?ink=0, ?comp=0, ?hf=0|1 mexem nos passes; ?sh=0 desliga as sombras. */
   private readonly flags = new URLSearchParams(location.search);
   private readonly plain: boolean;
   private scene: Scene;
@@ -59,13 +59,15 @@ export class Renderer {
     const fragile = isFragileGpu(this.gpuName) && !this.flags.has('q');
     this.quality = fragile ? { ...QUALITY[tier], pixels: Math.min(QUALITY[tier].pixels, FRAGILE_PIXELS) } : QUALITY[tier];
 
-    const hf = this.flags.get('hf') !== '0';
-    const composer = new EffectComposer(gl, { frameBufferType: hf ? HalfFloatType : UnsignedByteType, multisampling: 0 });
+    // buffers de 8 bits nas GPUs frágeis: metade da memória de vídeo do pós (o nouveau cai sob pressão de memória)
+    const hf = (this.flags.get('hf') ?? (fragile ? '0' : '1')) !== '0';
+    const bufferType = hf ? HalfFloatType : UnsignedByteType;
+    const composer = new EffectComposer(gl, { frameBufferType: bufferType, multisampling: 0 });
     this.ink = new InkPrePass(scene, camera);
     if (this.flags.get('ink') === '0') this.ink.skip = true;
     composer.addPass(this.ink);
     composer.addPass(new RenderPass(scene, camera));
-    const copy = new CopyPass(new WebGLRenderTarget(1, 1, { type: HalfFloatType, depthBuffer: false, stencilBuffer: false }));
+    const copy = new CopyPass(new WebGLRenderTarget(1, 1, { type: bufferType, depthBuffer: false, stencilBuffer: false }));
     composer.addPass(copy);
 
     if (this.quality.ao && this.flags.get('ao') !== '0') {

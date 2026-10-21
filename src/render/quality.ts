@@ -17,6 +17,8 @@ export interface Quality {
   pixels: number;
   ao: boolean;
   smaa: SMAAPreset;
+  /** Lado da face do cubo dos mapas de ambiente (PMREM); o céu é liso, 128 basta fora do alto. */
+  env: number;
   /** Resolução do reflexo do espelho do banho (fração da tela). */
   mirror: number;
   /** Luzes pontuais por ambiente e da piscina (fixas na sessão). */
@@ -28,9 +30,9 @@ export interface Quality {
 }
 
 export const QUALITY: Record<Tier, Quality> = {
-  high: { tex: 1, shadow: 4096, veg: 1, forest: 2600, terrainCell: 1, dpr: 2, pixels: 4.2e6, ao: true, smaa: SMAAPreset.HIGH, mirror: 0.5, roomLights: 3, poolLights: 2, shadowMove: 0.25, shadowTurn: 1e-7 },
-  medium: { tex: 0.5, shadow: 2048, veg: 0.75, forest: 2000, terrainCell: 1.3, dpr: 1.5, pixels: 2.6e6, ao: true, smaa: SMAAPreset.MEDIUM, mirror: 0.4, roomLights: 3, poolLights: 2, shadowMove: 1, shadowTurn: 1e-5 },
-  low: { tex: 0.35, shadow: 1024, veg: 0.5, forest: 1400, terrainCell: 1.7, dpr: 1.25, pixels: 1.4e6, ao: false, smaa: SMAAPreset.LOW, mirror: 0.3, roomLights: 1, poolLights: 1, shadowMove: 2.25, shadowTurn: 4e-5 },
+  high: { tex: 1, shadow: 4096, veg: 1, forest: 2600, terrainCell: 1, dpr: 2, pixels: 4.2e6, ao: true, smaa: SMAAPreset.HIGH, env: 256, mirror: 0.5, roomLights: 3, poolLights: 2, shadowMove: 0.25, shadowTurn: 1e-7 },
+  medium: { tex: 0.5, shadow: 2048, veg: 0.75, forest: 2000, terrainCell: 1.3, dpr: 1.5, pixels: 2.6e6, ao: true, smaa: SMAAPreset.MEDIUM, env: 128, mirror: 0.4, roomLights: 3, poolLights: 2, shadowMove: 1, shadowTurn: 1e-5 },
+  low: { tex: 0.35, shadow: 1024, veg: 0.5, forest: 1400, terrainCell: 1.7, dpr: 1.25, pixels: 1.4e6, ao: false, smaa: SMAAPreset.LOW, env: 128, mirror: 0.3, roomLights: 1, poolLights: 1, shadowMove: 2.25, shadowTurn: 4e-5 },
 };
 
 /** Nome da GPU (ex.: "ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 ...)"); vazio se o navegador esconder. */
