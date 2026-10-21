@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Vector3 } from 'three';
 import { stateAt, counterAt, type HeroPose } from '../src/story/stateAt';
-import { cameraKeys, stops } from '../src/story/stops';
+import { cameraKeys, finale, stops } from '../src/story/stops';
 import { house } from '../src/data/house';
 import { crossesWall } from '../src/data/validate';
 import { zoneIndex } from '../src/data/schema';
@@ -27,6 +27,17 @@ describe('stateAt', () => {
     const s1 = stateAt(1, hero);
     expect(s1.hero).toBe(1);
     expect(Math.max(...s1.reveal)).toBe(0);
+  });
+
+  it('volta ao desenho por baixo do papel: quando o papel sai, nada continua revelado', () => {
+    // o papel cobre a tela inteira com roll ≥ 0,983 (pior caso: 21:9)
+    for (let t = finale.back[0]; t <= finale.back[1] + 1e-9; t += 0.0002) expect(stateAt(t, hero).roll).toBeGreaterThan(0.983);
+    for (let t = finale.roll[1]; t <= 1; t += 0.0005) {
+      const s = stateAt(t, hero);
+      expect(Math.max(...s.reveal)).toBe(0);
+      expect(s.sky).toBe(0);
+      expect(s.hero).toBe(1);
+    }
   });
 
   it('revela cada ambiente na sua parada e mantém revelado depois', () => {

@@ -13,7 +13,7 @@ import {
   type Material,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { miscMaterial } from '../render/materials/library';
+import { glassMaterial, miscMaterial } from '../render/materials/library';
 import { patchMaterial } from '../render/materials/patchMaterial';
 import { Builder, newInkId } from './builder';
 
@@ -592,16 +592,32 @@ export function furnish(): Furnishings {
   k.piece(29.6, 3.9, 0, () => rug(k, 3.2, 3.6, M.warm()));
   k.piece(33.0, 1.4, -PI * 0.75, () => rattanChair(k));
   k.piece(29.6, 5.88, PI, () => art(k, 1.1, 0.8, 'lines'), 1.55);
+  // closet: estante aberta na parede da suíte (deixa a porta livre), armários na parede do banho,
+  // espelho de corpo inteiro ao fundo e a janela para o jardim no lado leste
   b.group = 'furn:closet';
-  k.piece(30.75, 6.3, PI, () => shelf(k, 6.2, 2.4, 0.55));
-  k.piece(30.75, 7.5, 0, () => cabinet(k, 2.2, 0.82, 0.7, M.quartz(), M.woodDark(), 4));
+  k.piece(29.6, 6.33, PI, () => shelf(k, 3.9, 2.4, 0.5));
+  k.piece(31.72, 8.62, PI, () => cabinet(k, 4.25, 2.3, 0.6, null, M.woodLight(), 5));
+  k.piece(30.6, 7.45, 0, () => rug(k, 4.2, 1.1, M.sand()));
+  k.piece(27.62, 7.45, PI / 2, () => {
+    k.box(0.95, 2.05, 0.03, M.brass(), 0, 0, 0);
+    k.part(() => k.box(0.89, 1.99, 0.01, miscMaterial('mirror'), 0, 0.03, 0.02));
+  }, 0.2);
+  for (const x of [29.4, 31.6]) k.piece(x, 7.45, 0, () => pendant(k, 2.8, 0.75, 'globe', 0.14));
+  // banho: banheira de frente para o pano de vidro, bancada dupla na parede sul e box de vidro no canto
   b.group = 'furn:banho';
   k.piece(32.42, 11.6, 0, () => tub(k));
-  k.piece(27.8, 11.2, PI / 2, () => vanity(k, 2.4));
-  k.piece(27.62, 11.2, PI / 2, () => {
+  k.piece(30.2, 13.68, PI, () => vanity(k, 2.4));
+  k.piece(30.2, 13.88, PI, () => {
     k.box(2.3, 1.05, 0.03, M.brass(), 0, 0, 0);
     k.part(() => k.box(2.24, 0.99, 0.01, miscMaterial('mirror'), 0, 0.03, 0.02));
   }, 1.15);
+  k.piece(28.3, 11.75, 0, () => {
+    k.box(1.4, 2.05, 0.02, glassMaterial(), 0, 0.02, 0);
+    k.part(() => k.box(1.4, 0.03, 0.04, M.brass(), 0, 2.07, 0));
+    k.part(() => k.cyl(0.14, 0.14, 0.02, M.brass(), 0, 2.32, 1.1, 20));
+    k.part(() => k.cyl(0.012, 0.012, 0.36, M.brass(), 0, 2.34, 1.1, 8));
+  });
+  k.piece(33.55, 13.3, 0, () => vase(k, 0.55, 0.16, M.terra()));
 
   // --- quartos ---
   b.group = 'furn:quartos';

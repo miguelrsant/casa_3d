@@ -47,14 +47,21 @@ export const cameraKeys: Key[] = [
   { t: 0.578, pos: [30.6, 1.6, -0.3], target: [30, 1.2, 5], ease: 'via' },
   // 06 · suíte (quarto → closet → banho)
   { t: 0.592, pos: [32.8, 1.6, 0.9], target: [28.6, 0.9, 5.2], fov: 54, ease: 'hold' },
-  { t: 0.615, pos: [32.7, 1.6, 1.1], target: [28.6, 0.9, 5.2], fov: 54, ease: 'hold' },
-  { t: 0.628, pos: [32.6, 1.6, 4.6], target: [32.6, 1.5, 9], ease: 'via' },
-  { t: 0.64, pos: [32.6, 1.6, 7.3], target: [27.8, 1.5, 7.5], fov: 54, ease: 'hold' },
-  { t: 0.652, pos: [32.6, 1.6, 7.4], target: [27.8, 1.5, 7.5], fov: 54, ease: 'hold' },
-  { t: 0.662, pos: [32.6, 1.6, 8.6], target: [31, 1.4, 12], ease: 'via' },
-  { t: 0.675, pos: [32.7, 1.6, 9.9], target: [27.5, 1.3, 11.3], fov: 54, ease: 'hold' },
-  { t: 0.7, pos: [32.8, 1.6, 10.1], target: [27.5, 1.3, 11.3], fov: 54, ease: 'hold' },
-  { t: 0.715, pos: [33.2, 1.6, 13.2], target: [38, 1.4, 13.2], ease: 'via' },
+  { t: 0.612, pos: [32.7, 1.6, 1.1], target: [28.6, 0.9, 5.2], fov: 54, ease: 'hold' },
+  // vira para a porta do closet, que abre enquanto a câmera chega (ver `doorKeys`)
+  { t: 0.623, pos: [32.5, 1.6, 3.0], target: [32.3, 1.5, 7.5], fov: 52, ease: 'via' },
+  { t: 0.634, pos: [32.4, 1.6, 5.4], target: [29.0, 1.4, 7.8], ease: 'via' },
+  // closet: estante à direita, armários à esquerda, espelho ao fundo e a porta do banho
+  { t: 0.644, pos: [32.5, 1.6, 7.55], target: [27.6, 1.25, 7.7], fov: 54, ease: 'hold' },
+  { t: 0.656, pos: [32.4, 1.6, 7.55], target: [27.6, 1.25, 7.7], fov: 54, ease: 'hold' },
+  // atravessa o closet até a porta do banho, que abre
+  // (só vira para o banho depois de passar do armário, senão a câmera encara a porta do armário)
+  { t: 0.666, pos: [30.0, 1.6, 7.45], target: [28.4, 1.4, 9.6], ease: 'via' },
+  { t: 0.675, pos: [28.4, 1.6, 8.35], target: [29.2, 1.4, 11.5], ease: 'via' },
+  // banho: banheira solta de frente para o pano de vidro e o jardim
+  { t: 0.685, pos: [28.7, 1.6, 9.95], target: [33.6, 1.15, 11.9], fov: 54, ease: 'hold' },
+  { t: 0.701, pos: [28.8, 1.6, 10.0], target: [33.6, 1.15, 11.9], fov: 54, ease: 'hold' },
+  { t: 0.715, pos: [31.2, 1.6, 12.75], target: [35.5, 1.4, 13.25], ease: 'via' },
   { t: 0.728, pos: [35.2, 1.6, 13.25], target: [37, 1.4, 6], ease: 'via' },
   { t: 0.745, pos: [36.2, 1.6, 2.5], target: [33, 1.3, -6], ease: 'via' },
   { t: 0.76, pos: [35, 1.6, -3.0], target: [28, 1.0, -7], ease: 'via' },
@@ -65,8 +72,8 @@ export const cameraKeys: Key[] = [
   // vista aérea do lote inteiro (centralizada) → papel → planta
   { t: 0.875, aerial: true, ease: 'hold' },
   // a troca para o enquadramento do hero acontece com o papel já cobrindo a tela
-  { t: 0.951, aerial: true, ease: 'hold' },
-  { t: 0.953, hero: true, ease: 'hold' },
+  { t: 0.947, aerial: true, ease: 'hold' },
+  { t: 0.949, hero: true, ease: 'hold' },
   { t: 1.0, hero: true, ease: 'hold' },
 ];
 
@@ -151,25 +158,33 @@ export const stops: Stop[] = [
     index: 6,
     title: 'A SUÍTE',
     room: 'suite',
-    reveal: [rv(['suite'], 0.58, 0.605), rv(['closet'], 0.628, 0.645), rv(['banho'], 0.662, 0.688)],
+    // closet e banho revelam enquanto a porta abre (vistos pelo vão): quando a câmera passa, já é render
+    reveal: [rv(['suite'], 0.58, 0.605), rv(['closet'], 0.617, 0.632), rv(['banho'], 0.659, 0.674)],
     dwell: [0.592, 0.7],
     marker: [29.6, 2.6, 4.6],
     extra: 'COM CLOSET E BANHO',
-    text: 'A suíte abre para o deck e para um jardim murado só seu. Do quarto se passa ao closet e ao banho, com banheira solta e ducha ao ar livre.',
-    finishes: ['Piso em madeira', 'Cabeceira em painel ripado', 'Banho em pedra e cerâmica', 'Ducha externa no jardim'],
+    text: 'A suíte abre para o deck e para um jardim murado só seu. Uma porta de freijó leva ao closet, com janela para o jardim, e outra ao banho, com a banheira solta de frente para o vidro e ducha ao ar livre.',
+    finishes: ['Piso em madeira', 'Cabeceira em painel ripado', 'Portas de giro em freijó', 'Banho em pedra e cerâmica', 'Ducha externa no jardim'],
   },
   {
     id: 'lounge',
     index: 7,
     title: 'O LOUNGE DO FOGO',
     room: 'lounge',
-    reveal: [rv(['jardimSuite'], 0.712, 0.738), rv(['lounge'], 0.755, 0.782)],
+    // o jardim da suíte já aparece revelado pelo vidro do banho
+    reveal: [rv(['jardimSuite'], 0.676, 0.698), rv(['lounge'], 0.755, 0.782)],
     dwell: [0.775, 0.81],
     marker: [29, 1.6, -7.4],
     extra: 'REBAIXADO 0,45 M',
     text: 'Um lounge rebaixado ao redor do fogo, com banco em U e vista para a piscina iluminada. É aqui que a noite começa.',
     finishes: ['Banco em concreto com almofadas', 'Fire pit em aço', 'Piso em pedra', 'Paisagismo tropical'],
   },
+];
+
+/** Portas que abrem quando a câmera chega (id da abertura em `house.openings` → intervalo de t). */
+export const doorKeys: { id: string; t: [number, number] }[] = [
+  { id: 'suite-closet', t: [0.615, 0.631] },
+  { id: 'closet-banho', t: [0.657, 0.672] },
 ];
 
 /** Revelação final (o que ainda está em desenho), em onda a partir do lounge. */
@@ -179,10 +194,17 @@ export const finaleWave = {
   t1: 0.866,
 };
 
-/** Fim do percurso: o papel desenrola e tudo volta ao desenho. */
+/**
+ * Fim do percurso: o papel desenrola e tudo volta ao desenho.
+ * `back` (volta ao desenho) tem de acabar antes de `roll` chegar a 1: com o papel já fora da tela,
+ * um quadro no meio da volta mostrava blocos revelados (com a borda laranja) piscando sobre a planta.
+ * O papel cobre a tela inteira a partir de ~91% do intervalo de `roll` em 16:9 (~93% em 21:9): a troca da
+ * câmera e a volta ao desenho acontecem por baixo dele.
+ */
 export const finale = {
-  aerialLabels: [0.872, 0.905] as [number, number],
-  roll: [0.905, 0.955] as [number, number],
+  aerialLabels: [0.872, 0.898] as [number, number],
+  roll: [0.898, 0.95] as [number, number],
+  back: [0.947, 0.95] as [number, number],
   cta: [0.96, 0.99] as [number, number],
 };
 

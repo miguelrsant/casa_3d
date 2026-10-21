@@ -18,7 +18,7 @@ import { buildLandscape } from './gen/landscape';
 import { SkySystem } from './gen/sky';
 import { LightRig } from './render/lightRig';
 import { stateAt, type HeroPose, type Pose, type SceneState } from './story/stateAt';
-import { sunKeys } from './story/stops';
+import { doorKeys, sunKeys } from './story/stops';
 import { buildStory, buildUI, drawScaleBar } from './ui/dom';
 import { Hud } from './ui/hud';
 import { FileModal } from './ui/fileModal';
@@ -181,6 +181,7 @@ export async function startApp() {
   buildZoneMap(house);
   const arch = buildArchitecture(house);
   scene.add(arch.root, arch.ground);
+  const doorById = new Map(arch.doors.map((d) => [d.id, d]));
   const furn = furnish();
   arch.root.add(furn.root);
   const fire = createFire(29, -0.45 + 0.38, -7);
@@ -195,8 +196,8 @@ export async function startApp() {
     color: 0xb9bdbd,
     multisample: 0,
   });
-  mirror.position.set(27.66, 1.15 + 0.03 + 0.505, 11.2);
-  mirror.rotation.y = Math.PI / 2;
+  mirror.position.set(30.2, 1.15 + 0.03 + 0.505, 13.84);
+  mirror.rotation.y = Math.PI;
   mirror.visible = false;
   scene.add(mirror);
   const bath = house.rooms.find((r) => r.id === 'banho')!.rect;
@@ -382,6 +383,8 @@ export async function startApp() {
   // --- loop ---
   let last = performance.now();
   let tOverride: number | null = null;
+  /** Câmera livre (diagnóstico e captura de vídeo): substitui a pose do percurso, mantendo o resto do estado. */
+  let poseOverride: { pos: number[]; target: number[]; fov?: number } | null = null;
 
   function applyState(s: SceneState) {
     // câmera (com o deslocamento do enquadramento do hero)
@@ -403,6 +406,7 @@ export async function startApp() {
     // casa
     arch.root.scale.y = s.extrude;
     arch.pivot.rotation.y = s.pivot * MathUtils.degToRad(84);
+    for (let n = 0; n < doorKeys.length; n++) doorById.get(doorKeys[n].id)?.set(s.doors[n]);
     for (const c of arch.ceilings) {
       const vis = s.pos.y < c.y * s.extrude - 0.04;
       for (const m of c.meshes) m.visible = vis;
@@ -475,6 +479,13 @@ export async function startApp() {
     const t = tOverride ?? lenis.progress;
     ensurePaper(Number.isFinite(t) ? t : 0);
     stateAt(Number.isFinite(t) ? t : 0, hero, state);
+    if (poseOverride) {
+      state.pos.fromArray(poseOverride.pos);
+      state.target.fromArray(poseOverride.target);
+      state.fov = poseOverride.fov ?? state.fov;
+      state.hero = 0;
+      state.up.set(0, 1, 0);
+    }
     applyState(state);
     renderer.roll.roll = state.roll < 1 ? state.roll : 0;
     hud.update(state, camera, view.w, view.h);
@@ -557,5 +568,5 @@ export async function startApp() {
 
   loader.done();
   requestAnimationFrame(loop);
-  Object.assign(window, { __casa: { state, scene, camera, renderer, lenis, setT: (t: number | null) => (tOverride = t) } });
+  Object.assign(window, { __casa: { state, scene, camera, renderer, lenis, setT: (t: number | null) => (tOverride = t), setPose: (p: typeof poseOverride) => (poseOverride = p) } });
 }

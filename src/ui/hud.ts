@@ -4,7 +4,7 @@ import { ScrambleTextPlugin } from 'gsap/ScrambleTextPlugin';
 import { brand } from '../content/brand';
 import { copy } from '../content/copy.pt-BR';
 import { house } from '../data/house';
-import { stops } from '../story/stops';
+import { finale, stops } from '../story/stops';
 import { counterAt, type SceneState } from '../story/stateAt';
 import { fmt, fmtArea } from '../gen/annotations';
 import { h, type UIRefs } from './dom';
@@ -135,8 +135,8 @@ export class Hud {
     let hint: string = copy.hints.next;
     if (s.t < 0.125) hint = copy.hints.enter;
     else if (s.callout > 0.5) hint = this.touch.matches ? copy.hints.markerTouch : copy.hints.marker;
-    else if (s.t > 0.86 && s.t < 0.955) hint = copy.hints.aerial;
-    else if (s.t >= 0.955) hint = copy.hints.end;
+    else if (s.t > 0.86 && s.t < finale.roll[1]) hint = copy.hints.aerial;
+    else if (s.t >= finale.roll[1]) hint = copy.hints.end;
     if (ui.hint.textContent !== hint) ui.hint.textContent = hint;
     ui.hint.style.opacity = s.t > 0.9 ? String(Math.max(0, 1 - s.roll * 1.5)) : '1';
 

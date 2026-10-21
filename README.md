@@ -25,8 +25,8 @@ npm run dev        # http://localhost:5173
 |---|---|
 | `src/content/brand.ts` | nome, logo, link do logo e do botão "Iniciar um projeto" |
 | `src/content/copy.pt-BR.ts` | **todos os textos** do site (os marcados `PLACEHOLDER` esperam a versão final) |
-| `src/data/house.ts` | a planta: eixos, ambientes (retângulos em metros), aberturas, áreas externas |
-| `src/story/stops.ts` | o percurso: câmera, quando cada ambiente revela, textos das fichas, horário do sol |
+| `src/data/house.ts` | a planta: eixos, ambientes (retângulos em metros), aberturas (portas com `anim: true` abrem com o scroll), áreas externas |
+| `src/story/stops.ts` | o percurso: câmera, quando cada ambiente revela, quando cada porta abre (`doorKeys`), textos das fichas, horário do sol |
 | `src/gen/furniture.ts` | móveis (posição de cada peça por ambiente) |
 | `src/gen/vegetation.ts` | espécies e plano de plantio |
 | `public/brand/` | logo da marca (M preto, fundo transparente) e ícones PNG (Apple/Android) |
@@ -49,6 +49,7 @@ As paredes são derivadas automaticamente das bordas dos ambientes. Para mudar a
 - **Luz de fim de tarde.** O percurso inteiro acontece por volta das 17 h: sol baixo e quente, com a direção ajustada em cada parada para entrar pelos panos de vidro. No fim, a câmera sobe para uma vista aérea do lote inteiro antes de o papel desenrolar.
 - **Mata em volta do lote.** Árvores leves (menos folhas, maiores) num anel em volta do lote, fora do desenho da planta; o terreno usa a mesma textura de grama do lote, sem emenda na divisa. No nível de qualidade baixo, só ~55% das árvores.
 - **Celular.** O 3D usa o viewport grande (`100lvh`), então a barra de endereço não redimensiona o pós-processamento a cada rolagem. A régua dos ambientes vira horizontal no rodapé e a ficha do ambiente fica fixa acima dela.
+- **Suíte → closet → banho.** As portas de freijó do closet e do banho ficam fechadas até a câmera chegar e abrem com o scroll; o ambiente seguinte revela pelo vão enquanto a porta abre.
 - **Pulos pela régua.** Para o próximo ambiente, a câmera segue o percurso; para trás ou para longe, o quadro atual se dissolve sobre o destino (sem rolar todas as cenas no caminho).
 
 ## Desempenho

@@ -15,6 +15,7 @@ import {
   type Group,
 } from 'three';
 import type { House } from '../data/schema';
+import { drive } from '../data/house';
 import { zoneAt } from '../render/zones';
 
 // ------------------------------------------------------------------ utilidades
@@ -552,7 +553,11 @@ export function plantingPlan(): Plant[] {
     const u = (Math.floor(i / 4) + r() * 0.6) / 6.5;
     const x = side === 0 ? -10 + r() * 2 : side === 1 ? 45.5 + r() * 2 : -10 + u * 56;
     const z = side === 0 || side === 1 ? -20 + u * 72 : side === 2 ? -20 + r() * 2 : 52 + r() * 2;
-    out.push(P(r() < 0.3 ? 'coconut' : 'canopy', x, z, 0.85 + r() * 0.4));
+    const species: Species = r() < 0.3 ? 'coconut' : 'canopy';
+    const s = 0.85 + r() * 0.4;
+    // a divisa sul é cortada pela rua de acesso: nada de árvore (nem copa de coqueiro) sobre o leito
+    if (side === 3 && x > drive.street.x0 - 4.5 && x < drive.street.x1 + 4.5) continue;
+    out.push(P(species, x, z, s));
   }
   return out.map((p, i) => ({ ...p, rot: rng(i + 7)() * Math.PI * 2, variant: i }));
 }

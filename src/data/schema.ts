@@ -118,6 +118,8 @@ export interface Opening {
   swing?: -1 | 1;
   /** Portas de correr: ponto (ao longo da parede) por onde o percurso passa — a folha ali fica aberta. */
   passAt?: number;
+  /** Porta de giro que abre com o scroll quando a câmera chega (tempo em `doorKeys`); fechada antes disso. */
+  anim?: boolean;
 }
 
 /** Bordas sem parede (ambientes integrados). */

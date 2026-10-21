@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { ZONES, zoneIndex, type CameraKey } from '../data/schema';
-import { cameraKeys, finale, finaleWave, stops, sunKeys, type Key } from './stops';
+import { cameraKeys, doorKeys, finale, finaleWave, stops, sunKeys, type Key } from './stops';
 
 export interface Pose {
   pos: Vector3;
@@ -32,6 +32,8 @@ export interface SceneState {
   night: number;
   exposure: number;
   pivot: number;
+  /** Abertura de cada porta de `doorKeys` (0 = fechada, 1 = aberta), na mesma ordem. */
+  doors: number[];
   /** Parada atual (índice em `stops`) e visibilidade do callout (0–1). */
   stop: number;
   callout: number;
@@ -121,6 +123,7 @@ export function stateAt(t: number, hero: HeroPose, out?: SceneState): SceneState
       target: new Vector3(),
       up: new Vector3(),
       reveal: new Float32Array(32),
+      doors: [] as number[],
     } as SceneState);
   t = clamp01(t);
   s.t = t;
@@ -157,8 +160,8 @@ export function stateAt(t: number, hero: HeroPose, out?: SceneState): SceneState
   s.up.set(0, 1 - down, -down).normalize();
 
   // --- extrusão, céu, sol ---
-  s.extrude = 0.012 + 0.988 * smooth(0.036, 0.104, t) * (1 - smooth(0.952, 0.956, t));
-  s.sky = smooth(0.136, 0.152, t) * (1 - smooth(0.952, 0.956, t));
+  s.extrude = 0.012 + 0.988 * smooth(0.036, 0.104, t) * (1 - smooth(finale.back[0], finale.back[1], t));
+  s.sky = smooth(0.136, 0.152, t) * (1 - smooth(finale.back[0], finale.back[1], t));
   let j = 0;
   while (j < sunKeys.length - 2 && t > sunKeys[j + 1].t) j++;
   const a = sunKeys[j];
@@ -169,6 +172,7 @@ export function stateAt(t: number, hero: HeroPose, out?: SceneState): SceneState
   s.night = smooth(4, -2.5, s.sunEl);
   s.exposure = 1.15 + 1.25 * s.night;
   s.pivot = smooth(0.128, 0.146, t);
+  for (let n = 0; n < doorKeys.length; n++) s.doors[n] = smooth(doorKeys[n].t[0], doorKeys[n].t[1], t);
 
   // --- revelação ---
   s.reveal.fill(0);
@@ -179,7 +183,7 @@ export function stateAt(t: number, hero: HeroPose, out?: SceneState): SceneState
     s.reveal[zoneIndex(z)] = Math.max(s.reveal[zoneIndex(z)], smooth(t0, t0 + d, t));
   });
   // depois do papel, tudo volta a ser desenho
-  const back = 1 - smooth(0.952, 0.956, t);
+  const back = 1 - smooth(finale.back[0], finale.back[1], t);
   for (let z = 0; z < ZONES.length; z++) s.reveal[z] *= back;
   s.siteFade = s.reveal[zoneIndex('site')];
 

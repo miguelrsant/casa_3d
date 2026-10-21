@@ -112,8 +112,10 @@ export const house: House = {
     // Suíte
     { id: 'suite-deck', kind: 'slide', line: 'z', at: 0, from: 26.5, to: 33.5, head: 3.0, passAt: 30.5 },
     { id: 'suite-jardim', kind: 'glass', line: 'x', at: 34, from: 0.5, to: 5.5, head: 3.0 },
-    { id: 'suite-closet', kind: 'void', line: 'z', at: 6, from: 32.0, to: 33.2, head: 2.4 },
-    { id: 'closet-banho', kind: 'void', line: 'z', at: 9, from: 32.0, to: 33.2, head: 2.4 },
+    // portas em freijó que abrem quando a câmera chega (closet e banho deixam de ser caixas fechadas)
+    { id: 'suite-closet', kind: 'door', line: 'z', at: 6, from: 31.9, to: 33.1, head: 2.4, hinge: 'to', swing: 1, anim: true },
+    { id: 'closet-banho', kind: 'door', line: 'z', at: 9, from: 27.9, to: 28.9, head: 2.4, hinge: 'from', swing: 1, anim: true },
+    { id: 'closet-jardim', kind: 'glass', line: 'x', at: 34, from: 6.3, to: 8.7, head: 2.6 },
     { id: 'banho-vidro', kind: 'glass', line: 'x', at: 34, from: 9.3, to: 12.6, head: 2.8 },
     { id: 'banho-jardim', kind: 'slide', line: 'x', at: 34, from: 12.7, to: 13.8, head: 2.6, passAt: 13.25 },
     // Quartos

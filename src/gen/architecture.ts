@@ -29,7 +29,15 @@ export interface Architecture {
   /** Ripados: fora do traço, aparecem quando o ambiente é revelado. */
   slats: Slats[];
   pivot: Group;
+  /** Portas que abrem com o scroll (`anim` na planta): `set(0)` fechada, `set(1)` aberta. */
+  doors: AnimDoor[];
   spans: WallSpan[];
+}
+
+export interface AnimDoor {
+  id: string;
+  group: Group;
+  set(open: number): void;
 }
 
 /** Retângulo menos buracos → lista de retângulos (decomposição em grade). */
@@ -127,7 +135,44 @@ function glazing(b: Builder, o: Opening, sill: number, head: number, panelMax: n
   b.group = g;
 }
 
-function openingGeometry(b: Builder, s: WallSpan, o: Opening, sill: number, head: number, pivot: Group) {
+/** Folha de giro em objeto próprio, com a dobradiça na origem: gira de fechada (0) até 95° (1) para o lado `swing`. */
+function animDoor(s: WallSpan, o: Opening, head: number): AnimDoor {
+  const group = new Group();
+  group.name = `door:${o.id}`;
+  const db = new Builder();
+  db.inkId = newInkId();
+  const w = o.to - o.from;
+  const hingeAt = o.hinge === 'to' ? o.to : o.from;
+  const dir = o.hinge === 'to' ? -1 : 1;
+  const sw = o.swing ?? 1;
+  const leaf = miscMaterial('pivot');
+  const brass = miscMaterial('brass');
+  // folha um pouco menor que o vão (folga de 1 cm), puxador vertical em latão nas duas faces
+  const a0 = dir > 0 ? 0.01 : -w + 0.01;
+  const a1 = dir > 0 ? w - 0.01 : -0.01;
+  const hx = dir > 0 ? w - 0.12 : -w + 0.12;
+  if (s.line === 'z') {
+    db.solid([a0, 0.005, -0.022], [a1, head - 0.01, 0.022], leaf);
+    db.solid([hx - 0.015, 0.85, -0.06], [hx + 0.015, 1.35, 0.06], brass);
+    group.position.set(hingeAt, 0, o.at);
+  } else {
+    db.solid([-0.022, 0.005, a0], [0.022, head - 0.01, a1], leaf);
+    db.solid([-0.06, 0.85, hx - 0.015], [0.06, 1.35, hx + 0.015], brass);
+    group.position.set(o.at, 0, hingeAt);
+  }
+  for (const meshes of db.build().values()) for (const m of meshes) group.add(m);
+  const max = (95 * Math.PI) / 180;
+  const sign = s.line === 'z' ? -dir * sw : dir * sw;
+  return {
+    id: o.id,
+    group,
+    set(open) {
+      group.rotation.y = sign * max * open;
+    },
+  };
+}
+
+function openingGeometry(b: Builder, s: WallSpan, o: Opening, sill: number, head: number, pivot: Group, doors: AnimDoor[]) {
   switch (o.kind) {
     case 'glass':
       glazing(b, o, 0, head, 1.6);
@@ -155,6 +200,12 @@ function openingGeometry(b: Builder, s: WallSpan, o: Opening, sill: number, head
       break;
     }
     case 'door': {
+      if (o.anim) {
+        const d = animDoor(s, o, head);
+        pivot.parent!.add(d.group);
+        doors.push(d);
+        break;
+      }
       const leafMat = miscMaterial('door');
       const w = o.to - o.from;
       const hingeAt = o.hinge === 'to' ? o.to : o.from;
@@ -243,6 +294,7 @@ export function buildArchitecture(h: House): Architecture {
   const pivot = new Group();
   pivot.name = 'pivot';
   root.add(pivot);
+  const doors: AnimDoor[] = [];
 
   const b = new Builder();
   const spans = deriveWalls(h);
@@ -264,7 +316,7 @@ export function buildArchitecture(h: House): Architecture {
       if (head < s.height - 1e-6) wallBox(b, s, o.from, o.to, head, s.height, false);
       const g = b.group;
       b.group = 'openings';
-      openingGeometry(b, s, o, sill, head, pivot);
+      openingGeometry(b, s, o, sill, head, pivot, doors);
       b.group = g;
       b.inkId = 1;
       cur = o.to;
@@ -403,7 +455,7 @@ export function buildArchitecture(h: House): Architecture {
   g.geometry(curb, floorMaterial('stone'));
   for (const meshes of g.build({ castShadow: false }).values()) for (const m of meshes) ground.add(m);
 
-  return { root, ground, ceilings, slats, pivot, spans };
+  return { root, ground, ceilings, slats, pivot, doors, spans };
 }
 
 /** Garante que objetos novos (fora do Builder) entrem no passe de traço. */
