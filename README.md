@@ -1,8 +1,32 @@
-# Casa Brisa · miguelrsant
+<div align="center">
+
+<a href="https://casa-3d-woad.vercel.app"><img src="docs/capa.jpg" alt="A piscina da Casa Brisa em render 3D: deck claro, cascata no muro de pedra, guarda-sol e palmeiras ao fim da tarde" width="100%"></a>
+
+# Casa Brisa
+
+**Toda casa começa como uma planta.**
+
+<a href="https://casa-3d-woad.vercel.app"><img src="https://img.shields.io/badge/%E2%96%B6%20Ver%20projeto-E2512A?style=for-the-badge" alt="Ver projeto" height="36"></a>
+
+<img src="https://img.shields.io/badge/three.js-000000?style=flat-square&logo=threedotjs&logoColor=white" alt="three.js">
+<img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript">
+<img src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite">
+<img src="https://img.shields.io/badge/GSAP-0AE448?style=flat-square&logo=greensock&logoColor=black" alt="GSAP">
+<img src="https://img.shields.io/badge/GLSL-5586A4?style=flat-square&logo=opengl&logoColor=white" alt="GLSL">
+
+</div>
+
+<br>
 
 Site de uma página em que a **planta baixa vira casa 3D conforme o scroll**. A câmera entra pela porta pivotante e percorre 7 ambientes. Cada ambiente passa de desenho a traço para render realista, em blocos com contorno laranja. No fim, uma folha de papel desenrola e devolve a planta.
 
 Tudo é gerado por código: arquitetura, móveis, vegetação, texturas e céu. Não há modelos 3D nem imagens de terceiros.
+
+<p align="center">
+  <img src="docs/planta.jpg" alt="Abertura do site: a planta baixa da Casa Brisa desenhada a traço, com o título Toda casa começa como uma planta" width="49%">
+  <img src="docs/estar.jpg" alt="O estar no meio da revelação: o forro de madeira já em render e o sofá ainda em desenho a traço" width="49%">
+</p>
+<p align="center"><sub>Da planta ao 3D: o mesmo desenho vira casa conforme a página rola.</sub></p>
 
 ## Rodar
 
@@ -67,3 +91,11 @@ As paredes são derivadas automaticamente das bordas dos ambientes. Para mudar a
 
 - **GPUs antigas com driver nouveau** (por exemplo, GeForce GTX 550 Ti no Linux): o driver trava a GPU de forma intermitente e roda a ~10 fps, mesmo sem pós-processamento. Nos testes, a queda veio da pressão de memória e de banda: a 1280×760 caía ~70% das vezes, e com ~0,6 Mpx renderizados não caiu nenhuma vez. Por isso, no nouveau o site usa um orçamento de pixels menor (a imagem é ampliada na tela). Se o contexto cair mesmo assim, a página recarrega sozinha até 2 vezes, voltando ao mesmo ponto do percurso. Depois disso, mostra a planta estática com o botão "Tentar o 3D de novo". Testes repetidos de queda podem travar o driver no kernel; aí só reiniciando o PC. O site detecta isso, começa no nível de qualidade baixo e, se o contexto WebGL cair, mostra a planta estática (`public/fallback/planta.png`). Para regenerar essa imagem: `node tests/e2e/fallback.mjs` com o `npm run dev` rodando.
 - O bundle JS tem ~430 KB gzip (three.js + pós-processamento + texto 3D).
+
+---
+
+<div align="center">
+
+Feito por **Miguel Angelo** · [miguelrsant.com.br](https://miguelrsant.com.br) · [LinkedIn](https://www.linkedin.com/in/miguelrsant) · [GitHub](https://github.com/miguelrsant)
+
+</div>
