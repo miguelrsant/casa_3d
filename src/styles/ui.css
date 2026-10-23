@@ -17,6 +17,44 @@ body.is-loading {
   overflow: hidden;
 }
 
+/* barra de rolagem: traço fino de nanquim sobre o papel, laranja ao pegar; clara sobre a mata (HUD claro) */
+html {
+  --sb-thumb: var(--ink);
+  --sb-track: var(--paper);
+}
+html.is-light {
+  --sb-thumb: var(--light);
+  --sb-track: rgba(20, 24, 18, 0.35);
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--sb-track);
+  box-shadow: inset 1px 0 0 var(--ink-faint);
+}
+::-webkit-scrollbar-thumb {
+  min-height: 48px;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--sb-thumb) padding-box;
+}
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  border-width: 2px;
+  background-color: var(--accent);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sb-thumb) var(--sb-track);
+  }
+}
+
 #scene {
   position: fixed;
   left: 0;

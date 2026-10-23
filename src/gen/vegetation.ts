@@ -61,6 +61,12 @@ let DETAIL = 1;
 export function setVegetationDetail(d: number) {
   DETAIL = MathUtils.clamp(d, 0.2, 1);
 }
+/**
+ * Com DETAIL < 1, mantém só uma parte das folhas (sempre as mesmas, espalhadas pela sequência).
+ * As folhas descartadas continuam consumindo o gerador aleatório: a versão de longe é a mesma planta
+ * com menos folhas, e não outra árvore (a troca de detalhe na subida final mudava galhos e copa).
+ */
+const keepLeaf = (i: number) => DETAIL >= 1 || (i * 0.6180339887) % 1 < DETAIL;
 
 const _a = new Vector3();
 const _b = new Vector3();
@@ -153,8 +159,8 @@ function frond(acc: Acc, base: Vector3, az: number, elev: number, L: number, lea
   const tint = c0.clone().multiplyScalar(0.85 + r() * 0.3);
   const tip = c1.clone().multiplyScalar(0.85 + r() * 0.25);
   const wk = DETAIL < 1 ? 1 / Math.sqrt(DETAIL) : 1;
-  if (DETAIL < 1) n = Math.max(4, Math.round(n * DETAIL));
   for (let i = 0; i < n; i++) {
+    const keep = keepLeaf(i);
     const s = 0.1 + (0.88 * i) / n;
     const p = at(s);
     const t = at(Math.min(1, s + 0.01)).sub(at(Math.max(0, s - 0.01))).normalize();
@@ -173,6 +179,7 @@ function frond(acc: Acc, base: Vector3, az: number, elev: number, L: number, lea
         pts.push(new Vector3().copy(p).addScaledVector(d, len * u).add(new Vector3(0, -0.28 * len * u * u, 0)));
         ws.push(Math.max(0.004, 0.022 * (1 - u * 0.75) * (leaflet / 0.6)) * wk);
       }
+      if (!keep) continue;
       const lateral = new Vector3().crossVectors(d, UP).normalize();
       if (lateral.lengthSq() < 1e-6) lateral.copy(t);
       strip(acc, pts, ws, lateral, tint, tip);
@@ -205,10 +212,7 @@ function paddleLeaf(acc: Acc, base: Vector3, az: number, tilt: number, stem: num
 
 /** Nuvem de folhas (arbustos, copas, primavera): cartões na superfície de um elipsoide com ruído. */
 function cluster(acc: Acc, center: Vector3, rx: number, ry: number, rz: number, count: number, size: number, r: () => number, palette: Color[], weights?: number[]) {
-  if (DETAIL < 1) {
-    count = Math.max(6, Math.round(count * DETAIL));
-    size /= Math.sqrt(DETAIL);
-  }
+  if (DETAIL < 1) size /= Math.sqrt(DETAIL);
   for (let i = 0; i < count; i++) {
     // ponto aleatório na esfera
     const u = r() * 2 - 1;
@@ -237,6 +241,7 @@ function cluster(acc: Acc, center: Vector3, rx: number, ry: number, rz: number, 
     const col = palette[ci].clone().multiplyScalar(0.8 + r() * 0.35);
     const w = size * (0.7 + r() * 0.6);
     const h = w * 0.55;
+    if (!keepLeaf(i)) continue;
     const n = nrm.clone().lerp(UP, 0.25).normalize();
     const a = acc.vert(p.clone().addScaledVector(t1, -w).addScaledVector(t2, -h), n, col);
     const b = acc.vert(p.clone().addScaledVector(t1, w).addScaledVector(t2, -h), n, col);
@@ -539,8 +544,10 @@ export function plantingPlan(): Plant[] {
   out.push(P('bougainvillea', 39.4, 6.0, 1));
   // jardim da suíte
   out.push(P('ipe', 37.2, 8.6, 1));
-  for (const [x, z] of [[39.2, 1.2], [39.2, 12.8], [34.8, 13.2]] as [number, number][]) out.push(P('heliconia', x, z, 1));
-  for (const [x, z] of [[36.2, 13.2], [38.0, 13.3]] as [number, number][]) out.push(P('fern', x, z, 1));
+  // folga das paredes e do vidro do banho (a helicônia abre ~1,3 m e a samambaia ~0,8 m): as folhas não atravessam
+  // o muro nem o vidro, e a saída do banho para o jardim (porta de correr em z 12,7–13,8) fica livre
+  for (const [x, z] of [[38.4, 1.6], [38.4, 11.0], [36.3, 10.9]] as [number, number][]) out.push(P('heliconia', x, z, 0.95));
+  for (const [x, z] of [[36.8, 12.9], [38.8, 12.9]] as [number, number][]) out.push(P('fern', x, z, 1));
   // lateral oeste (cozinha/garagem) e leste (quartos)
   for (const z of [5, 8.5, 11.5, 15.5]) out.push(P('topiary', -1.4, z, 0.8));
   for (const z of [15.5, 18.5, 22.5]) out.push(P('areca', 35.6, z, 0.9));
@@ -611,7 +618,7 @@ export interface Vegetation {
 }
 
 /** A partir desta distância (m, até a borda do lote de plantas) usa a geometria de longe. */
-const LOD_FAR = 38;
+const LOD_FAR = 70;
 const LOD_HYST = 4;
 /** Fração das folhas na geometria de longe. */
 const LOD_DETAIL = 0.3;

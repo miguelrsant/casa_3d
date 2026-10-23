@@ -15,6 +15,11 @@ import {
 } from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 
+const _up = new Vector3(0, 1, 0);
+const _x = new Vector3();
+const _y = new Vector3();
+const _c = new Vector3();
+
 /** Direção do sol a partir de azimute (0 = norte, horário) e elevação, em graus. Norte = −z. */
 export function sunDirection(azDeg: number, elDeg: number, out = new Vector3()): Vector3 {
   const az = MathUtils.degToRad(azDeg);
@@ -165,8 +170,16 @@ export class SkySystem {
     this.hemi.intensity = 0.08 + 0.4 * day + 0.3 * moon;
     this.hemi.color.set('#5c6f9c').lerp(new Color('#e4ebf1'), day);
     this.hemi.groundColor.set('#2a2622').lerp(new Color('#b49a76'), day);
-    this.target.position.copy(center);
-    this.sun.position.copy(center).addScaledVector(lightDir, 110);
+    // centro da sombra preso à grade de texels do shadow map: andando com a câmera, a sombra se desloca
+    // em texels inteiros e as bordas não "tremem" (serrilhado andando na madeira dos sofás do lounge)
+    const texel = (2 * radius) / this.sun.shadow.mapSize.x;
+    _x.crossVectors(_up, lightDir).normalize();
+    _y.crossVectors(lightDir, _x);
+    const sx = Math.round(center.dot(_x) / texel) * texel - center.dot(_x);
+    const sy = Math.round(center.dot(_y) / texel) * texel - center.dot(_y);
+    _c.copy(center).addScaledVector(_x, sx).addScaledVector(_y, sy);
+    this.target.position.copy(_c);
+    this.sun.position.copy(_c).addScaledVector(lightDir, 110);
     const cam = this.sun.shadow.camera;
     cam.left = -radius;
     cam.right = radius;

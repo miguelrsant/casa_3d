@@ -120,6 +120,7 @@ export class Hud {
     ui.final.style.opacity = String(s.cta);
     ui.final.style.visibility = s.cta < 0.01 ? 'hidden' : 'visible';
     ui.root.classList.toggle('is-light', s.hudLight);
+    document.documentElement.classList.toggle('is-light', s.hudLight); // barra de rolagem acompanha o HUD
 
     // contador e régua
     const c = counterAt(s.t);
